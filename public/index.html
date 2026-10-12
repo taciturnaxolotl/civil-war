@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Civil War Scoreboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/app.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Civil War</h1>
+      <p class="sub">Team Cap vs. Team Stark · one kill per target · 2 pts for a nemesis special</p>
+    </div>
+    <a href="/admin">Admin</a>
+  </header>
+
+  <section class="versus" aria-label="Team scores">
+    <div class="side cap"><div class="lbl">Team Cap</div><div class="pts num" id="capPts">0</div></div>
+    <div class="vs">vs</div>
+    <div class="side stark"><div class="lbl">Team Stark</div><div class="pts num" id="starkPts">0</div></div>
+  </section>
+  <div class="bar" aria-hidden="true"><i class="c" id="barC" style="width:50%"></i><i class="s" id="barS" style="width:50%"></i></div>
+
+  <div class="grid">
+    <div class="col">
+      <form class="panel" id="form" autocomplete="off">
+        <h2>Log a kill</h2>
+        <div class="row">
+          <label class="f">Who got the kill<select id="killer"></select></label>
+          <label class="f">Who went down<select id="victim"></select></label>
+        </div>
+        <label class="f" style="max-width:220px">Day<input type="date" id="day"></label>
+        <label class="check bonus"><input type="checkbox" id="rps"><div><b>Won at rock paper scissors</b><span>, you saw each other. Counts as a regular kill; you two can't kill each other after this, and nobody else can kill them today.</span></div></label>
+        <label class="check" id="specialWrap" hidden><input type="checkbox" id="special"><div><b>Used special attack</b><span id="specialDesc"></span></div></label>
+        <label class="check bonus" id="bonusWrap" hidden><input type="checkbox" id="bonus"><div style="flex:1;min-width:0"><b id="bonusTitle"></b><span id="bonusHint"></span></div></label>
+        <label class="f" id="noteWrap" hidden>What made it extra special<input type="text" id="note" maxlength="140" placeholder="e.g. shot from behind the library pillars, never saw him"></label>
+        <div class="warn" id="warn" hidden></div>
+        <div class="preview">
+          <div><div class="big num" id="prev">1</div><div class="note" id="prevNote">point</div></div>
+          <button class="go" id="submit" type="submit">Log kill</button>
+        </div>
+        <div class="gate" id="gate" hidden>
+          <input type="password" id="password" placeholder="Game password" autocomplete="current-password">
+          <button class="ghost" type="button" id="unlock">Unlock</button>
+        </div>
+        <div class="status" id="status" role="status"></div>
+      </form>
+
+      <section class="panel">
+        <h2>Kill feed</h2>
+        <ul class="feed" id="feed"><li class="empty" style="display:block">Loading kills…</li></ul>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel">
+        <h2>Standings</h2>
+        <div style="overflow-x:auto"><table>
+          <thead><tr><th></th><th>Player</th><th class="r">Kills</th><th class="r">Pts</th></tr></thead>
+          <tbody id="standings"></tbody>
+        </table></div>
+      </section>
+      <section class="panel">
+        <details>
+          <summary>Nemesis chart &amp; specials</summary>
+          <div class="rules" id="rules"></div>
+        </details>
+      </section>
+    </div>
+  </div>
+</div>
+</body>
+</html>

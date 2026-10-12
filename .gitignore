@@ -1,0 +1,6 @@
+rules.md
+node_modules
+.wrangler
+.dev.vars
+.DS_Store
+src/worker-configuration.d.ts
