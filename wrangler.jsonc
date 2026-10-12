@@ -8,15 +8,18 @@
 		"binding": "ASSETS",
 		"directory": "public",
 		// The API lives in the worker; everything else is a static file.
-		"run_worker_first": ["/api/*"]
+		"run_worker_first": [
+			"/api/*"
+		]
 	},
-	"observability": { "enabled": true },
+	"observability": {
+		"enabled": true
+	},
 	"d1_databases": [
 		{
 			"binding": "DB",
 			"database_name": "civil-war",
-			// Replace with the id printed by `wrangler d1 create civil-war`.
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_id": "d65638d4-4a8b-485f-80d5-0716cbd0cf66",
 			"migrations_dir": "migrations"
 		}
 	]
