@@ -17,20 +17,12 @@
       <h1>Civil War Admin</h1>
       <p class="sub">Changes here only shape kills logged from now on. Every kill keeps the player, character, team and points it had when it was scored.</p>
     </div>
-    <div class="gate"><a href="/">Scoreboard</a><button class="ghost" id="logout" type="button" hidden>Sign out</button></div>
+    <a href="/">Scoreboard</a>
   </header>
-
-  <form class="panel" id="login" hidden>
-    <h2>Sign in</h2>
-    <div class="gate">
-      <input type="password" id="password" placeholder="Admin password" autocomplete="current-password">
-      <button class="go" type="submit">Sign in</button>
-    </div>
-  </form>
 
   <div class="status" id="status" role="status"></div>
 
-  <div id="main" hidden style="display:flex;flex-direction:column;gap:20px">
+  <div id="main" style="display:flex;flex-direction:column;gap:20px">
     <section class="panel">
       <h2>Characters &amp; players</h2>
       <p class="note">Who plays which character, which team they fight for, their nemesis and special. Removing a character with kills on the books retires it instead, so its points stay put.</p>

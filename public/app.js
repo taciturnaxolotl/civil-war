@@ -1,5 +1,13 @@
 import { $, api, esc, fmtDay, watchState } from "/common.js";
-import { EXTRA, TEAMS, addDays, blocker, cooldownThrough, outOn, points, today, usesSpecial } from "/rules.js";
+import {
+	TEAMS,
+	addDays,
+	check,
+	cooldownThrough,
+	outOn,
+	points,
+	today,
+} from "/rules.js";
 
 let characters = [];
 let chars = {};
@@ -7,82 +15,132 @@ let kills = [];
 let session = { role: null, playerPasswordRequired: false };
 let loaded = false;
 
+// What's picked in the form. The killer sticks around between kills, since
+// it's usually the person holding the phone.
+const entry = {
+	killer: localStorage.getItem("cw:killer") || "",
+	victim: "",
+	method: "regular",
+	picking: false,
+};
+
+const SHORT = {
+	repeat: "Already got them",
+	"rps-pair": "Settled by RPS",
+	"rps-day": "Safe today (lost RPS)",
+};
+
 const canWrite = () => !session.playerPasswordRequired || !!session.role;
-const bonusText = (c) => c.bonus || EXTRA;
-const label = (c, extra = "") => `<option value="${esc(c.id)}">${esc(c.player || "(unassigned)")} · ${esc(c.hero)}${extra}</option>`;
 const active = () => characters.filter((c) => c.active);
-
-function fillKiller() {
-	const prev = $("killer").value;
-	$("killer").innerHTML = Object.entries(TEAMS)
-		.map(([team, name]) => `<optgroup label="${name}">${active().filter((c) => c.team === team).map((c) => label(c)).join("")}</optgroup>`)
-		.join("");
-	const remembered = localStorage.getItem("cw:killer");
-	const pick = [prev, remembered].find((id) => id && chars[id]?.active);
-	if (pick) $("killer").value = pick;
-}
-
-function fillVictim() {
-	const k = chars[$("killer").value];
-	const prev = $("victim").value;
-	if (!k) {
-		$("victim").innerHTML = "";
-		return;
-	}
-	const foes = active().filter((v) => v.team !== k.team);
-	$("victim").innerHTML = foes.map((v) => label(v, k.target === v.id ? "  ★ nemesis" : "")).join("");
-	const ids = foes.map((v) => v.id);
-	$("victim").value = ids.includes(prev) ? prev : ids.includes(k.target) ? k.target : (ids[0] ?? "");
-}
+const name = (c) => esc(c.player || "(unassigned)");
 
 function draft() {
 	return {
-		killer: $("killer").value,
-		victim: $("victim").value,
+		killer: entry.killer,
+		victim: entry.victim,
 		day: $("day").value || today(),
-		rps: $("rps").checked,
-		special: $("special").checked,
-		bonus: $("bonus").checked,
+		rps: entry.method === "rps",
+		special: entry.method === "special",
+		bonus: entry.method === "special" && $("bonus").checked,
 	};
 }
 
-function updateForm() {
-	const k = chars[$("killer").value];
-	const v = chars[$("victim").value];
-	const rps = $("rps").checked;
-	const nemesis = !!k && !!v && k.target === v.id && !rps;
-
-	$("specialWrap").hidden = !nemesis;
-	if (!nemesis) $("special").checked = false;
-	$("specialDesc").textContent = k ? `: ${k.special}` : "";
-	const showBonus = nemesis && $("special").checked;
-	$("bonusWrap").hidden = !showBonus;
-	if (!showBonus) $("bonus").checked = false;
-	if (k) {
-		$("bonusTitle").textContent = bonusText(k);
-		$("bonusHint").textContent = k.bonus ? ", or anything else extra special, +1 either way" : ", pulled it off in some especially impressive way";
-	}
-	$("noteWrap").hidden = !$("bonus").checked;
-
+function renderEntry() {
+	const k = chars[entry.killer]?.active ? chars[entry.killer] : null;
+	const picking = entry.picking || !k;
 	const d = draft();
-	const p = k ? points(k, d) : 0;
-	$("prev").textContent = p;
-	$("prevNote").textContent = p === 1 ? "point" : "points";
 
-	const warns = [];
-	const why = loaded ? blocker(d, kills, chars) : null;
-	if (why) warns.push(why);
-	if (k && usesSpecial(k, d)) {
-		const end = cooldownThrough(k, kills, d.day);
-		if (end) warns.push(`${k.hero}'s special is on cooldown until ${fmtDay(addDays(end, 1))}.`);
+	$("killerStep").innerHTML =
+		`<div class="step-label">Name of killer</div>` +
+		(picking
+			? Object.entries(TEAMS)
+					.map(
+						([team, label]) =>
+							`<div class="team-label ${team}">${label}</div><div class="picker">${active()
+								.filter((c) => c.team === team)
+								.map(
+									(c) =>
+										`<button type="button" class="chip ${team}" data-killer="${esc(c.id)}" aria-pressed="${c.id === entry.killer}"><b>${name(c)}</b><small>${esc(c.hero)}</small></button>`,
+								)
+								.join("")}</div>`,
+					)
+					.join("")
+			: `<div class="me"><span class="dot ${k.team}"></span><div><b>${name(k)}</b><small>${esc(k.hero)} · ${TEAMS[k.team]}</small></div><button type="button" class="link" data-change>Change</button></div>`);
+
+	$("victimStep").hidden = picking;
+	let v = null;
+	if (!picking) {
+		const out = outOn(d.day, kills);
+		const foes = active()
+			.filter((c) => c.team !== k.team)
+			.sort((a, b) => (b.id === k.target) - (a.id === k.target));
+		const why = Object.fromEntries(
+			foes.map((c) => [
+				c.id,
+				loaded ? check({ ...d, victim: c.id }, kills, chars) : null,
+			]),
+		);
+		if (!foes.some((c) => c.id === entry.victim) || why[entry.victim])
+			entry.victim = "";
+		v = chars[entry.victim] ?? null;
+		$("victims").innerHTML = foes
+			.map((c) => {
+				const no = why[c.id];
+				const sub = no
+					? (SHORT[no.code] ?? "Unavailable")
+					: out.has(c.id)
+						? `${esc(c.hero)} · out today`
+						: esc(c.hero);
+				const star =
+					c.id === k.target
+						? `<span class="star" title="Your nemesis">★</span>`
+						: "";
+				return `<button type="button" class="chip ${c.team}" data-victim="${esc(c.id)}" aria-pressed="${c.id === entry.victim}"${no ? ` disabled title="${esc(no.message)}"` : ""}><span class="chip-top"><b>${name(c)}</b>${star}</span><small>${sub}</small></button>`;
+			})
+			.join("");
 	}
-	if (v && outOn(d.day, kills).has(v.id)) warns.push(`${v.player} is already out of commission on this day.`);
+
+	$("methodStep").hidden = !v;
+	const nemesis = !!v && k.target === v.id;
+	if (!nemesis && entry.method === "special") entry.method = "regular";
+	for (const b of document.querySelectorAll("[data-method]")) {
+		b.setAttribute("aria-pressed", String(b.dataset.method === entry.method));
+		if (b.dataset.method === "special") {
+			b.disabled = !nemesis;
+			b.title = nemesis ? "" : "Specials only count on your nemesis";
+		}
+	}
+	const special = entry.method === "special";
+	if (k) {
+		$("bonusText").textContent =
+			k.bonus?.replace(/\s*\(\+1[^)]*\)\s*$/, "") || "Pulled it off in style";
+	}
+	$("bonusWrap").hidden = !special;
+	if (!special) $("bonus").checked = false;
+	$("note").hidden = !$("bonus").checked;
+
+	const final = draft();
+	const warns = [];
+	if (k && special) {
+		const end = cooldownThrough(k, kills, final.day);
+		if (end)
+			warns.push(
+				`${k.hero}'s special is on cooldown until ${fmtDay(addDays(end, 1))}.`,
+			);
+	}
 	$("warn").hidden = !warns.length;
 	$("warn").textContent = warns.join(" ");
 
-	$("gate").hidden = canWrite();
+	const p = k && v ? points(k, final) : 0;
+	$("submit").textContent = picking
+		? "Pick your hero (or villain 😈)"
+		: !v
+			? "Pick your target to murder"
+			: `Log kill · ${p} ${p === 1 ? "point" : "points"}`;
+	$("submit").disabled =
+		!loaded || picking || !v || !!check(final, kills, chars);
 	$("submit").hidden = !canWrite();
-	$("submit").disabled = !loaded || !!why || !k || !v;
+	$("gate").hidden = canWrite();
 }
 
 function render() {
@@ -107,7 +165,12 @@ function render() {
 	const t = today();
 	const out = outOn(t, kills);
 	const shown = characters.filter((c) => c.active || by[c.id].kills);
-	const ranked = shown.sort((a, b) => by[b.id].pts - by[a.id].pts || by[b.id].kills - by[a.id].kills || a.player.localeCompare(b.player));
+	const ranked = shown.sort(
+		(a, b) =>
+			by[b.id].pts - by[a.id].pts ||
+			by[b.id].kills - by[a.id].kills ||
+			a.player.localeCompare(b.player),
+	);
 	let rank = 0;
 	let prevPts = null;
 	$("standings").innerHTML = ranked
@@ -120,14 +183,18 @@ function render() {
 			const tags = [];
 			if (!c.active) tags.push(`<span class="pill">Retired</span>`);
 			if (out.has(c.id)) tags.push(`<span class="pill out">Out today</span>`);
-			if (cooldownThrough(c, kills, t)) tags.push(`<span class="pill cd">Special on cooldown</span>`);
-			const was = s.was.size ? ` · earlier: ${[...s.was].map(esc).join(", ")}` : "";
-			return `<tr><td class="rank">${rank}</td><td><div class="who"><span class="dot ${c.team}"></span><div>${esc(c.player || "(unassigned)")} ${tags.join(" ")}<small>${esc(c.hero)}${was}</small></div></div></td><td class="r num">${s.kills}</td><td class="r num"><b>${s.pts}</b></td></tr>`;
+			if (cooldownThrough(c, kills, t))
+				tags.push(`<span class="pill cd">Special on cooldown</span>`);
+			const was = s.was.size
+				? ` · earlier: ${[...s.was].map(esc).join(", ")}`
+				: "";
+			return `<tr><td class="rank">${s.pts > 0 ? rank : `<span class="unranked">-</span>`}</td><td><div class="who"><span class="dot ${c.team}"></span><div>${esc(c.player || "(unassigned)")} ${tags.join(" ")}<small>${esc(c.hero)}${was}</small></div></div></td><td class="r num">${s.kills}</td><td class="r num"><b>${s.pts}</b></td></tr>`;
 		})
 		.join("");
 
 	if (!kills.length) {
-		$("feed").innerHTML = `<li class="empty" style="display:block">No kills yet. Log the first one above.</li>`;
+		$("feed").innerHTML =
+			`<li class="empty" style="display:block">No kills yet! Go out and multiply death ^-^</li>`;
 	} else {
 		let html = "";
 		let lastDay = null;
@@ -136,39 +203,42 @@ function render() {
 				html += `<li class="daytag" style="display:block">${fmtDay(k.day)}</li>`;
 				lastDay = k.day;
 			}
-			const bonus = k.bonus ? ` · bonus${k.note ? ": " + esc(k.note) : ""}` : "";
-			const detail = k.rps ? "Won rock paper scissors" : k.special ? `Special: ${esc(k.specialDesc)}${bonus}` : "Regular kill";
+			const bonus = k.bonus
+				? ` · bonus${k.note ? ": " + esc(k.note) : ""}`
+				: "";
+			const detail = k.rps
+				? "Won rock paper scissors"
+				: k.special
+					? `Special: ${esc(k.specialDesc)}${bonus}`
+					: "Regular kill";
 			html += `<li><span class="p" style="color:var(--${k.killerTeam})">${k.points}</span><div class="t"><b>${esc(k.killerPlayer)}</b> got <b>${esc(k.victimPlayer)}</b><small>${esc(k.killerHero)} → ${esc(k.victimHero)} · ${detail}</small></div>${canWrite() ? `<button class="x" data-id="${k.id}" type="button">Undo</button>` : "<span></span>"}</li>`;
 		}
 		$("feed").innerHTML = html;
 	}
 
-	$("rules").innerHTML =
-		active()
-			.map((c) => {
-				const tgt = chars[c.target];
-				const bits = [`<b style="color:var(--${c.team})">${esc(c.hero)}</b> → ${tgt ? esc(tgt.hero) : "no nemesis"}: ${esc(c.special)}`];
-				if (c.bonus) bits.push(`bonus: ${esc(c.bonus)}`);
-				if (c.knocksOut) bits.push("target out for the day");
-				if (c.cooldown) bits.push(`${c.cooldown}-day cooldown`);
-				return `<div>${bits.join(" · ")}</div>`;
-			})
-			.join("") +
-		`<div style="margin-top:6px">Any special attack pulled off in an extra special way earns +1 (one bonus per kill, so 3 pts max).</div>` +
-		`<div>See each other at the same time? Rock paper scissors: the winner gets a regular kill, the two of you can't kill each other after that, and nobody else can kill the loser that day.</div>` +
-		`<div>Otherwise, after someone is killed, the killer's teammates can still kill them that same day (each person once).</div>` +
-		`<div>Safe spots: lounge, dorms, classes, work. Immunity: sing your team's song.</div>`;
-
-	updateForm();
+	renderEntry();
 }
 
-$("killer").addEventListener("change", () => {
-	localStorage.setItem("cw:killer", $("killer").value);
-	fillVictim();
-	$("special").checked = false;
-	updateForm();
+$("form").addEventListener("click", (e) => {
+	const b = e.target.closest("button");
+	if (!b || b.disabled) return;
+	if (b.dataset.killer) {
+		if (b.dataset.killer !== entry.killer) {
+			entry.victim = "";
+			entry.method = "regular";
+		}
+		entry.killer = b.dataset.killer;
+		entry.picking = false;
+		localStorage.setItem("cw:killer", entry.killer);
+	} else if ("change" in b.dataset) entry.picking = true;
+	else if (b.dataset.victim)
+		entry.victim = entry.victim === b.dataset.victim ? "" : b.dataset.victim;
+	else if (b.dataset.method) entry.method = b.dataset.method;
+	else return;
+	renderEntry();
 });
-for (const id of ["victim", "rps", "special", "bonus", "day"]) $(id).addEventListener("change", updateForm);
+for (const id of ["bonus", "day"])
+	$(id).addEventListener("change", renderEntry);
 
 $("form").addEventListener("submit", async (e) => {
 	e.preventDefault();
@@ -177,15 +247,21 @@ $("form").addEventListener("submit", async (e) => {
 	$("submit").disabled = true;
 	$("status").textContent = "Saving…";
 	try {
-		await api("/api/kills", { method: "POST", body: { ...d, note: $("note").value } });
-		$("status").textContent = `Logged: ${chars[d.killer].player} got ${chars[d.victim].player}.`;
-		for (const id of ["rps", "special", "bonus"]) $(id).checked = false;
+		await api("/api/kills", {
+			method: "POST",
+			body: { ...d, note: $("note").value },
+		});
+		$("status").textContent = "";
+		entry.victim = "";
+		entry.method = "regular";
+		$("bonus").checked = false;
 		$("note").value = "";
+		renderEntry();
 		watcher.refresh();
 	} catch (err) {
 		if (err.status === 401) session.role = null;
 		$("status").textContent = err.message;
-		updateForm();
+		renderEntry();
 	}
 });
 
@@ -214,7 +290,10 @@ $("feed").addEventListener("click", async (e) => {
 
 async function unlock() {
 	try {
-		session = await api("/api/session", { method: "POST", body: { password: $("password").value } });
+		session = await api("/api/session", {
+			method: "POST",
+			body: { password: $("password").value },
+		});
 		$("password").value = "";
 		$("status").textContent = "Unlocked. Go get 'em.";
 		render();
@@ -248,8 +327,6 @@ const watcher = watchState(
 			$("status").textContent = "";
 			delete $("status").dataset.offline;
 		}
-		fillKiller();
-		fillVictim();
 		render();
 	},
 	() => {

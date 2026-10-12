@@ -11,12 +11,9 @@
 </head>
 <body>
 <div class="wrap">
-  <header class="top">
-    <div>
-      <h1>Civil War</h1>
-      <p class="sub">Team Cap vs. Team Stark · one kill per target · 2 pts for a nemesis special</p>
-    </div>
-    <a href="/admin">Admin</a>
+  <header>
+    <h1>Civil War</h1>
+    <p class="sub">Let the thunderdome begin</p>
   </header>
 
   <section class="versus" aria-label="Team scores">
@@ -28,24 +25,27 @@
 
   <div class="grid">
     <div class="col">
-      <form class="panel" id="form" autocomplete="off">
-        <h2>Log a kill</h2>
-        <div class="row">
-          <label class="f">Who got the kill<select id="killer"></select></label>
-          <label class="f">Who went down<select id="victim"></select></label>
+      <form class="panel entry" id="form" autocomplete="off">
+        <div class="panel-head"><h2>Killllll em</h2><input type="date" id="day" class="day" aria-label="Day of the kill"></div>
+        <div class="step" id="killerStep"></div>
+        <div class="step" id="victimStep" hidden>
+          <div class="step-label">One who suffered an ignominious end</div>
+          <div class="picker" id="victims"></div>
         </div>
-        <label class="f" style="max-width:220px">Day<input type="date" id="day"></label>
-        <label class="check bonus"><input type="checkbox" id="rps"><div><b>Won at rock paper scissors</b><span>, you saw each other. Counts as a regular kill; you two can't kill each other after this, and nobody else can kill them today.</span></div></label>
-        <label class="check" id="specialWrap" hidden><input type="checkbox" id="special"><div><b>Used special attack</b><span id="specialDesc"></span></div></label>
-        <label class="check bonus" id="bonusWrap" hidden><input type="checkbox" id="bonus"><div style="flex:1;min-width:0"><b id="bonusTitle"></b><span id="bonusHint"></span></div></label>
-        <label class="f" id="noteWrap" hidden>What made it extra special<input type="text" id="note" maxlength="140" placeholder="e.g. shot from behind the library pillars, never saw him"></label>
+        <div class="step" id="methodStep" hidden>
+          <div class="step-label">How?</div>
+          <div class="seg" role="group" aria-label="How the kill happened">
+            <button type="button" data-method="regular">Regular</button>
+            <button type="button" data-method="special">Special <span class="star">★</span></button>
+            <button type="button" data-method="rps">Rock paper scissors</button>
+          </div>
+          <label class="toggle" id="bonusWrap" hidden><input type="checkbox" id="bonus"><span id="bonusText"></span><b>+1</b></label>
+          <input type="text" id="note" maxlength="140" placeholder="What made it extra special? (optional)" hidden>
+        </div>
         <div class="warn" id="warn" hidden></div>
-        <div class="preview">
-          <div><div class="big num" id="prev">1</div><div class="note" id="prevNote">point</div></div>
-          <button class="go" id="submit" type="submit">Log kill</button>
-        </div>
+        <button class="go" id="submit" type="submit" disabled>Log kill</button>
         <div class="gate" id="gate" hidden>
-          <input type="password" id="password" placeholder="Game password" autocomplete="current-password">
+          <input type="password" id="password" placeholder="Game password to log kills" autocomplete="current-password">
           <button class="ghost" type="button" id="unlock">Unlock</button>
         </div>
         <div class="status" id="status" role="status"></div>
@@ -61,15 +61,9 @@
       <section class="panel">
         <h2>Standings</h2>
         <div style="overflow-x:auto"><table>
-          <thead><tr><th></th><th>Player</th><th class="r">Kills</th><th class="r">Pts</th></tr></thead>
+          <thead><tr><th>#</th><th>Player</th><th class="r">Kills</th><th class="r">Pts</th></tr></thead>
           <tbody id="standings"></tbody>
         </table></div>
-      </section>
-      <section class="panel">
-        <details>
-          <summary>Nemesis chart &amp; specials</summary>
-          <div class="rules" id="rules"></div>
-        </details>
       </section>
     </div>
   </div>

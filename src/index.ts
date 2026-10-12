@@ -1,15 +1,21 @@
-import { blocker, isDay, points, TEAMS, usesSpecial, type Character, type Kill } from "../public/rules.js";
+import {
+	blocker,
+	isDay,
+	points,
+	TEAMS,
+	usesSpecial,
+	type Character,
+	type Kill,
+} from "../public/rules.js";
 
 export interface Env {
 	DB: D1Database;
 	ASSETS: Fetcher;
-	/** Unlocks /admin. Admin stays off entirely when this is unset. */
-	ADMIN_PASSWORD?: string;
-	/** When set, logging and undoing kills needs this (or the admin password). */
+	/** When set, logging kills needs this. Everything else, admin included, is open. */
 	PLAYER_PASSWORD?: string;
 }
 
-type Role = "admin" | "player";
+type Role = "player";
 
 class HttpError extends Error {
 	constructor(
@@ -29,7 +35,11 @@ export default {
 		const url = new URL(req.url);
 		if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(req);
 		try {
-			if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "DELETE") {
+			if (
+				req.method !== "GET" &&
+				req.method !== "HEAD" &&
+				req.method !== "DELETE"
+			) {
 				// A JSON body can't be sent cross-site without a preflight, which
 				// together with SameSite cookies keeps other sites from posting here.
 				if (!req.headers.get("content-type")?.includes("application/json"))
@@ -37,7 +47,8 @@ export default {
 			}
 			return await route(req, env, url);
 		} catch (err) {
-			if (err instanceof HttpError) return json({ error: err.message }, err.status);
+			if (err instanceof HttpError)
+				return json({ error: err.message }, err.status);
 			console.error(err);
 			return json({ error: "Something went wrong on our end." }, 500);
 		}
@@ -66,23 +77,21 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
 		const id = Number(parts[1]);
 		if (parts.length === 2 && Number.isInteger(id)) {
 			if (m === "DELETE") {
-				await need(req, env, "player");
 				await env.DB.prepare("DELETE FROM kills WHERE id = ?").bind(id).run();
 				return json({ ok: true });
 			}
-			if (m === "PATCH") {
-				await need(req, env, "admin");
-				return editKill(req, env, id);
-			}
+			if (m === "PATCH") return editKill(req, env, id);
 		}
 	}
 
 	if (parts[0] === "characters") {
-		await need(req, env, "admin");
 		if (parts.length === 1 && m === "POST") return createCharacter(req, env);
-		if (parts.length === 2 && parts[1] === "swap" && m === "POST") return swapPlayers(req, env);
-		if (parts.length === 2 && m === "PATCH") return editCharacter(req, env, parts[1]);
-		if (parts.length === 2 && m === "DELETE") return removeCharacter(env, parts[1]);
+		if (parts.length === 2 && parts[1] === "swap" && m === "POST")
+			return swapPlayers(req, env);
+		if (parts.length === 2 && m === "PATCH")
+			return editCharacter(req, env, parts[1]);
+		if (parts.length === 2 && m === "DELETE")
+			return removeCharacter(env, parts[1]);
 	}
 
 	throw new HttpError(404, "Not found.");
@@ -91,7 +100,9 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
 /* ---------- reads ---------- */
 
 async function loadCharacters(env: Env): Promise<Character[]> {
-	const { results } = await env.DB.prepare("SELECT * FROM characters ORDER BY sort, hero").all();
+	const { results } = await env.DB.prepare(
+		"SELECT * FROM characters ORDER BY sort, hero",
+	).all();
 	return results.map((r) => ({
 		id: String(r.id),
 		hero: String(r.hero),
@@ -108,7 +119,9 @@ async function loadCharacters(env: Env): Promise<Character[]> {
 }
 
 async function loadKills(env: Env): Promise<Kill[]> {
-	const { results } = await env.DB.prepare("SELECT * FROM kills ORDER BY day, at, id").all();
+	const { results } = await env.DB.prepare(
+		"SELECT * FROM kills ORDER BY day, at, id",
+	).all();
 	return results.map((r) => ({
 		id: Number(r.id),
 		day: String(r.day),
@@ -132,14 +145,20 @@ async function loadKills(env: Env): Promise<Kill[]> {
 }
 
 async function state(req: Request, env: Env): Promise<Response> {
-	const [characters, kills] = await Promise.all([loadCharacters(env), loadKills(env)]);
+	const [characters, kills] = await Promise.all([
+		loadCharacters(env),
+		loadKills(env),
+	]);
 	const body = JSON.stringify({ characters, kills });
 	// The page polls this, so let unchanged state come back as an empty 304.
 	const digest = await crypto.subtle.digest("SHA-256", enc.encode(body));
 	const etag = `"${hex(digest).slice(0, 32)}"`;
 	const headers = { etag, "cache-control": "no-cache" };
-	if (req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers });
-	return new Response(body, { headers: { ...headers, "content-type": "application/json" } });
+	if (req.headers.get("if-none-match") === etag)
+		return new Response(null, { status: 304, headers });
+	return new Response(body, {
+		headers: { ...headers, "content-type": "application/json" },
+	});
 }
 
 /* ---------- kills ---------- */
@@ -156,7 +175,10 @@ async function logKill(req: Request, env: Env): Promise<Response> {
 	};
 	if (!isDay(draft.day)) throw new HttpError(400, "Pick a valid day.");
 
-	const [characters, kills] = await Promise.all([loadCharacters(env), loadKills(env)]);
+	const [characters, kills] = await Promise.all([
+		loadCharacters(env),
+		loadKills(env),
+	]);
 	const chars = Object.fromEntries(characters.map((c) => [c.id, c]));
 	const why = blocker(draft, kills, chars);
 	if (why) throw new HttpError(409, why);
@@ -199,7 +221,10 @@ async function logKill(req: Request, env: Env): Promise<Response> {
 		return json({ ok: true, id: row?.id, points: pts }, 201);
 	} catch (err) {
 		if (String(err).includes("UNIQUE"))
-			throw new HttpError(409, `${k.hero} already killed ${v.hero}. Each person can only be killed once.`);
+			throw new HttpError(
+				409,
+				`${k.hero} already killed ${v.hero}. Each person can only be killed once.`,
+			);
 		throw err;
 	}
 }
@@ -210,7 +235,8 @@ async function editKill(req: Request, env: Env, id: number): Promise<Response> {
 	const args: unknown[] = [];
 	if (body.points !== undefined) {
 		const p = Number(body.points);
-		if (!Number.isInteger(p) || p < -10 || p > 10) throw new HttpError(400, "Points must be a whole number.");
+		if (!Number.isInteger(p) || p < -10 || p > 10)
+			throw new HttpError(400, "Points must be a whole number.");
 		sets.push("points = ?");
 		args.push(p);
 	}
@@ -225,7 +251,9 @@ async function editKill(req: Request, env: Env, id: number): Promise<Response> {
 		args.push(str(body.note, 140).trim());
 	}
 	if (!sets.length) throw new HttpError(400, "Nothing to change.");
-	const res = await env.DB.prepare(`UPDATE kills SET ${sets.join(", ")} WHERE id = ?`)
+	const res = await env.DB.prepare(
+		`UPDATE kills SET ${sets.join(", ")} WHERE id = ?`,
+	)
 		.bind(...args, id)
 		.run();
 	if (!res.meta.changes) throw new HttpError(404, "No such kill.");
@@ -234,7 +262,11 @@ async function editKill(req: Request, env: Env, id: number): Promise<Response> {
 
 /* ---------- characters ---------- */
 
-async function characterValues(env: Env, body: Record<string, unknown>, self: string | null) {
+async function characterValues(
+	env: Env,
+	body: Record<string, unknown>,
+	self: string | null,
+) {
 	const out: Record<string, unknown> = {};
 	if (body.hero !== undefined) {
 		const hero = str(body.hero, 60).trim();
@@ -243,14 +275,20 @@ async function characterValues(env: Env, body: Record<string, unknown>, self: st
 	}
 	if (body.player !== undefined) out.player = str(body.player, 80).trim();
 	if (body.team !== undefined) {
-		if (!(String(body.team) in TEAMS)) throw new HttpError(400, "Team must be cap or stark.");
+		if (!(String(body.team) in TEAMS))
+			throw new HttpError(400, "Team must be cap or stark.");
 		out.team = String(body.team);
 	}
 	if (body.target !== undefined) {
 		const target = body.target ? str(body.target, 40) : null;
 		if (target) {
-			if (target === self) throw new HttpError(400, "A character can't be their own nemesis.");
-			const exists = await env.DB.prepare("SELECT 1 FROM characters WHERE id = ?").bind(target).first();
+			if (target === self)
+				throw new HttpError(400, "A character can't be their own nemesis.");
+			const exists = await env.DB.prepare(
+				"SELECT 1 FROM characters WHERE id = ?",
+			)
+				.bind(target)
+				.first();
 			if (!exists) throw new HttpError(400, "That nemesis doesn't exist.");
 		}
 		out.target = target;
@@ -262,7 +300,8 @@ async function characterValues(env: Env, body: Record<string, unknown>, self: st
 	for (const key of ["cooldown", "sort"] as const) {
 		if (body[key] === undefined) continue;
 		const n = Number(body[key]);
-		if (!Number.isInteger(n) || n < 0 || n > 999) throw new HttpError(400, `${key} must be a whole number.`);
+		if (!Number.isInteger(n) || n < 0 || n > 999)
+			throw new HttpError(400, `${key} must be a whole number.`);
 		out[key] = n;
 	}
 	return out;
@@ -275,10 +314,18 @@ async function createCharacter(req: Request, env: Env): Promise<Response> {
 	if (!values.team) throw new HttpError(400, "Pick a team.");
 	const base = slug(String(values.hero)) || "hero";
 	let id = base;
-	for (let i = 2; await env.DB.prepare("SELECT 1 FROM characters WHERE id = ?").bind(id).first(); i++)
+	for (
+		let i = 2;
+		await env.DB.prepare("SELECT 1 FROM characters WHERE id = ?")
+			.bind(id)
+			.first();
+		i++
+	)
 		id = `${base}${i}`;
 	if (values.sort === undefined) {
-		const max = await env.DB.prepare("SELECT COALESCE(MAX(sort), 0) AS s FROM characters").first<{ s: number }>();
+		const max = await env.DB.prepare(
+			"SELECT COALESCE(MAX(sort), 0) AS s FROM characters",
+		).first<{ s: number }>();
 		values.sort = (max?.s ?? 0) + 1;
 	}
 	const cols = Object.keys(values);
@@ -290,12 +337,18 @@ async function createCharacter(req: Request, env: Env): Promise<Response> {
 	return json({ ok: true, id }, 201);
 }
 
-async function editCharacter(req: Request, env: Env, id: string): Promise<Response> {
+async function editCharacter(
+	req: Request,
+	env: Env,
+	id: string,
+): Promise<Response> {
 	const body = await readJson(req);
 	const values = await characterValues(env, body, id);
 	const cols = Object.keys(values);
 	if (!cols.length) throw new HttpError(400, "Nothing to change.");
-	const res = await env.DB.prepare(`UPDATE characters SET ${cols.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`)
+	const res = await env.DB.prepare(
+		`UPDATE characters SET ${cols.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`,
+	)
 		.bind(...Object.values(values), id)
 		.run();
 	if (!res.meta.changes) throw new HttpError(404, "No such character.");
@@ -306,25 +359,40 @@ async function swapPlayers(req: Request, env: Env): Promise<Response> {
 	const body = await readJson(req);
 	const a = str(body.a, 40);
 	const b = str(body.b, 40);
-	if (!a || !b || a === b) throw new HttpError(400, "Pick two different characters.");
-	const rows = await env.DB.prepare("SELECT id, player FROM characters WHERE id IN (?, ?)")
+	if (!a || !b || a === b)
+		throw new HttpError(400, "Pick two different characters.");
+	const rows = await env.DB.prepare(
+		"SELECT id, player FROM characters WHERE id IN (?, ?)",
+	)
 		.bind(a, b)
 		.all<{ id: string; player: string }>();
 	const pa = rows.results.find((r) => r.id === a);
 	const pb = rows.results.find((r) => r.id === b);
 	if (!pa || !pb) throw new HttpError(404, "No such character.");
 	await env.DB.batch([
-		env.DB.prepare("UPDATE characters SET player = ? WHERE id = ?").bind(pb.player, a),
-		env.DB.prepare("UPDATE characters SET player = ? WHERE id = ?").bind(pa.player, b),
+		env.DB.prepare("UPDATE characters SET player = ? WHERE id = ?").bind(
+			pb.player,
+			a,
+		),
+		env.DB.prepare("UPDATE characters SET player = ? WHERE id = ?").bind(
+			pa.player,
+			b,
+		),
 	]);
 	return json({ ok: true });
 }
 
 async function removeCharacter(env: Env, id: string): Promise<Response> {
 	// Characters with history stay around (retired) so their points still count.
-	const used = await env.DB.prepare("SELECT 1 FROM kills WHERE killer = ?1 OR victim = ?1 LIMIT 1").bind(id).first();
+	const used = await env.DB.prepare(
+		"SELECT 1 FROM kills WHERE killer = ?1 OR victim = ?1 LIMIT 1",
+	)
+		.bind(id)
+		.first();
 	const [, res] = await env.DB.batch([
-		env.DB.prepare("UPDATE characters SET target = NULL WHERE target = ?").bind(id),
+		env.DB.prepare("UPDATE characters SET target = NULL WHERE target = ?").bind(
+			id,
+		),
 		used
 			? env.DB.prepare("UPDATE characters SET active = 0 WHERE id = ?").bind(id)
 			: env.DB.prepare("DELETE FROM characters WHERE id = ?").bind(id),
@@ -339,7 +407,6 @@ async function sessionInfo(req: Request, env: Env) {
 	return {
 		role: await currentRole(req, env),
 		playerPasswordRequired: !!env.PLAYER_PASSWORD,
-		adminEnabled: !!env.ADMIN_PASSWORD,
 	};
 }
 
@@ -347,8 +414,8 @@ async function login(req: Request, env: Env): Promise<Response> {
 	const body = await readJson(req);
 	const password = str(body.password, 200);
 	let role: Role | null = null;
-	if (env.ADMIN_PASSWORD && (await same(password, env.ADMIN_PASSWORD))) role = "admin";
-	else if (env.PLAYER_PASSWORD && (await same(password, env.PLAYER_PASSWORD))) role = "player";
+	if (env.PLAYER_PASSWORD && (await same(password, env.PLAYER_PASSWORD)))
+		role = "player";
 	if (!role) throw new HttpError(401, "That password isn't right.");
 	const exp = Date.now() + SESSION_DAYS * 864e5;
 	const payload = `${role}.${exp}`;
@@ -366,25 +433,22 @@ async function currentRole(req: Request, env: Env): Promise<Role | null> {
 		?.slice(COOKIE.length + 1);
 	if (!raw) return null;
 	const [role, exp, sig] = raw.split(".");
-	if (role !== "admin" && role !== "player") return null;
+	if (role !== "player") return null;
 	if (!(Number(exp) > Date.now())) return null;
-	if (role === "admin" && !env.ADMIN_PASSWORD) return null;
 	if (!(await same(sig ?? "", await sign(env, `${role}.${exp}`)))) return null;
 	return role;
 }
 
 async function need(req: Request, env: Env, want: Role) {
-	const role = await currentRole(req, env);
-	if (role === "admin") return;
-	if (want === "player" && (role === "player" || !env.PLAYER_PASSWORD)) return;
-	throw new HttpError(want === "admin" && !env.ADMIN_PASSWORD ? 403 : 401, "Sign in first.");
+	if (!env.PLAYER_PASSWORD || (await currentRole(req, env)) === want) return;
+	throw new HttpError(401, "Sign in first.");
 }
 
-/** Sessions are keyed off the passwords, so changing one signs everyone out. */
+/** Sessions are keyed off the password, so changing it signs everyone out. */
 async function sign(env: Env, payload: string) {
 	const key = await crypto.subtle.importKey(
 		"raw",
-		enc.encode(`civil-war\0${env.ADMIN_PASSWORD ?? ""}\0${env.PLAYER_PASSWORD ?? ""}`),
+		enc.encode(`civil-war\0${env.PLAYER_PASSWORD ?? ""}`),
 		{ name: "HMAC", hash: "SHA-256" },
 		false,
 		["sign"],
@@ -394,7 +458,9 @@ async function sign(env: Env, payload: string) {
 
 /** Compares digests rather than the strings so timing says nothing about them. */
 async function same(a: string, b: string) {
-	const [x, y] = await Promise.all([a, b].map((s) => crypto.subtle.digest("SHA-256", enc.encode(s))));
+	const [x, y] = await Promise.all(
+		[a, b].map((s) => crypto.subtle.digest("SHA-256", enc.encode(s))),
+	);
 	const ua = new Uint8Array(x);
 	const ub = new Uint8Array(y);
 	let diff = 0;
@@ -409,17 +475,26 @@ function cookie(value: string, maxAge: number, url: URL) {
 
 /* ---------- helpers ---------- */
 
-function json(data: unknown, status = 200, headers: Record<string, string> = {}) {
+function json(
+	data: unknown,
+	status = 200,
+	headers: Record<string, string> = {},
+) {
 	return new Response(JSON.stringify(data), {
 		status,
-		headers: { "content-type": "application/json", "cache-control": "no-store", ...headers },
+		headers: {
+			"content-type": "application/json",
+			"cache-control": "no-store",
+			...headers,
+		},
 	});
 }
 
 async function readJson(req: Request): Promise<Record<string, unknown>> {
 	try {
 		const body = await req.json();
-		if (body && typeof body === "object" && !Array.isArray(body)) return body as Record<string, unknown>;
+		if (body && typeof body === "object" && !Array.isArray(body))
+			return body as Record<string, unknown>;
 	} catch {}
 	throw new HttpError(400, "Couldn't read that request.");
 }
@@ -437,5 +512,7 @@ function slug(s: string) {
 }
 
 function hex(buf: ArrayBuffer) {
-	return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+	return [...new Uint8Array(buf)]
+		.map((b) => b.toString(16).padStart(2, "0"))
+		.join("");
 }

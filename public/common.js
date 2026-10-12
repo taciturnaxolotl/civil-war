@@ -2,12 +2,22 @@
 
 export const $ = (id) => document.getElementById(id);
 
-const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+const ESC = {
+	"&": "&amp;",
+	"<": "&lt;",
+	">": "&gt;",
+	'"': "&quot;",
+	"'": "&#39;",
+};
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ESC[c]);
 
 export function fmtDay(day) {
 	const [y, m, d] = day.split("-").map(Number);
-	return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+	return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+		weekday: "short",
+		month: "short",
+		day: "numeric",
+	});
 }
 
 export async function api(path, { method = "GET", body } = {}) {
@@ -36,7 +46,9 @@ export function watchState(onChange, onError, every = 5000) {
 	async function tick() {
 		clearTimeout(timer);
 		try {
-			const res = await fetch("/api/state", { headers: etag ? { "if-none-match": etag } : {} });
+			const res = await fetch("/api/state", {
+				headers: etag ? { "if-none-match": etag } : {},
+			});
 			if (res.status === 200) {
 				etag = res.headers.get("etag");
 				onChange(await res.json());

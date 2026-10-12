@@ -12,14 +12,20 @@ function targetOptions(selfId, selected) {
 		`<option value="">No nemesis</option>` +
 		characters
 			.filter((c) => c.id !== selfId)
-			.map((c) => `<option value="${esc(c.id)}"${c.id === selected ? " selected" : ""}>${esc(c.hero)}${c.active ? "" : " (retired)"}</option>`)
+			.map(
+				(c) =>
+					`<option value="${esc(c.id)}"${c.id === selected ? " selected" : ""}>${esc(c.hero)}${c.active ? "" : " (retired)"}</option>`,
+			)
 			.join("")
 	);
 }
 
 function charCard(c) {
 	const teams = Object.entries(TEAMS)
-		.map(([id, name]) => `<option value="${id}"${c.team === id ? " selected" : ""}>${name}</option>`)
+		.map(
+			([id, name]) =>
+				`<option value="${id}"${c.team === id ? " selected" : ""}>${name}</option>`,
+		)
 		.join("");
 	return `<form class="char ${c.team}${c.active ? "" : " retired"}" data-id="${esc(c.id)}">
 		<label class="f">Character<input type="text" name="hero" maxlength="60" value="${esc(c.hero)}" required></label>
@@ -39,7 +45,13 @@ function charCard(c) {
 function render() {
 	$("chars").innerHTML = characters.map(charCard).join("");
 
-	const opts = characters.filter((c) => c.active).map((c) => `<option value="${esc(c.id)}">${esc(c.hero)} · ${esc(c.player || "(unassigned)")}</option>`).join("");
+	const opts = characters
+		.filter((c) => c.active)
+		.map(
+			(c) =>
+				`<option value="${esc(c.id)}">${esc(c.hero)} · ${esc(c.player || "(unassigned)")}</option>`,
+		)
+		.join("");
 	for (const id of ["swapA", "swapB"]) {
 		const prev = $(id).value;
 		$(id).innerHTML = opts;
@@ -51,7 +63,11 @@ function render() {
 		? [...kills]
 				.reverse()
 				.map((k) => {
-					const how = k.rps ? "Rock paper scissors" : k.special ? `Special${k.bonus ? " + bonus" : ""}` : "Regular";
+					const how = k.rps
+						? "Rock paper scissors"
+						: k.special
+							? `Special${k.bonus ? " + bonus" : ""}`
+							: "Regular";
 					return `<tr data-id="${k.id}">
 						<td><input type="date" name="day" value="${esc(k.day)}" title="${esc(fmtDay(k.day))}"></td>
 						<td><b style="color:var(--${k.killerTeam})">${esc(k.killerPlayer)}</b> (${esc(k.killerHero)}) got <b style="color:var(--${k.victimTeam})">${esc(k.victimPlayer)}</b> (${esc(k.victimHero)})</td>
@@ -80,7 +96,6 @@ async function act(fn, done) {
 		await load();
 	} catch (err) {
 		status(err.message);
-		if (err.status === 401) await boot();
 	}
 }
 
@@ -100,7 +115,14 @@ $("chars").addEventListener("submit", (e) => {
 		knocksOut: f.has("knocksOut"),
 		active: f.has("active"),
 	};
-	act(() => api(`/api/characters/${encodeURIComponent(form.dataset.id)}`, { method: "PATCH", body }), `Saved ${body.hero}.`);
+	act(
+		() =>
+			api(`/api/characters/${encodeURIComponent(form.dataset.id)}`, {
+				method: "PATCH",
+				body,
+			}),
+		`Saved ${body.hero}.`,
+	);
 });
 
 $("chars").addEventListener("click", (e) => {
@@ -117,8 +139,15 @@ $("chars").addEventListener("click", (e) => {
 	}
 	const id = b.closest("form").dataset.id;
 	act(async () => {
-		const r = await api(`/api/characters/${encodeURIComponent(id)}`, { method: "DELETE" });
-		if (r.retired) setTimeout(() => status(`${chars[id]?.hero ?? "Character"} has kills on record, so it was retired instead of deleted.`));
+		const r = await api(`/api/characters/${encodeURIComponent(id)}`, {
+			method: "DELETE",
+		});
+		if (r.retired)
+			setTimeout(() =>
+				status(
+					`${chars[id]?.hero ?? "Character"} has kills on record, so it was retired instead of deleted.`,
+				),
+			);
 	}, "Removed.");
 });
 
@@ -126,7 +155,10 @@ $("swap").addEventListener("submit", (e) => {
 	e.preventDefault();
 	const a = $("swapA").value;
 	const b = $("swapB").value;
-	act(() => api("/api/characters/swap", { method: "POST", body: { a, b } }), `Swapped ${chars[a]?.player} and ${chars[b]?.player}.`);
+	act(
+		() => api("/api/characters/swap", { method: "POST", body: { a, b } }),
+		`Swapped ${chars[a]?.player} and ${chars[b]?.player}.`,
+	);
 });
 
 $("add").addEventListener("submit", (e) => {
@@ -154,7 +186,10 @@ $("kills").addEventListener("click", (e) => {
 			points: Number(row.querySelector("[name=points]").value),
 			note: row.querySelector("[name=note]").value,
 		};
-		act(() => api(`/api/kills/${id}`, { method: "PATCH", body }), "Kill updated.");
+		act(
+			() => api(`/api/kills/${id}`, { method: "PATCH", body }),
+			"Kill updated.",
+		);
 	}
 	const del = e.target.closest("[data-delete]");
 	if (del) {
@@ -167,35 +202,4 @@ $("kills").addEventListener("click", (e) => {
 	}
 });
 
-$("login").addEventListener("submit", async (e) => {
-	e.preventDefault();
-	try {
-		const s = await api("/api/session", { method: "POST", body: { password: $("password").value } });
-		$("password").value = "";
-		if (s.role !== "admin") {
-			status("That's the player password. Admin needs its own.");
-			return;
-		}
-		status("");
-		await boot();
-	} catch (err) {
-		status(err.message);
-	}
-});
-
-$("logout").addEventListener("click", async () => {
-	await api("/api/session", { method: "DELETE" }).catch(() => {});
-	await boot();
-});
-
-async function boot() {
-	const s = await api("/api/session");
-	const admin = s.role === "admin";
-	$("main").hidden = !admin;
-	$("logout").hidden = !s.role;
-	$("login").hidden = admin || !s.adminEnabled;
-	if (!s.adminEnabled) status("Admin is turned off. Set ADMIN_PASSWORD on the worker to turn it on.");
-	if (admin) await load();
-}
-
-boot().catch((err) => status(err.message));
+load().catch((err) => status(err.message));

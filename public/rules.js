@@ -43,31 +43,59 @@ export function points(killer, draft) {
 }
 
 /**
+ * Why a kill isn't allowed, as a short code plus a sentence, or null if it is.
+ * @param {Draft} draft
+ * @param {Kill[]} kills
+ * @param {Record<string, Character>} chars
+ * @returns {{ code: string, message: string } | null}
+ */
+export function check(draft, kills, chars) {
+	const k = chars[draft.killer];
+	const v = chars[draft.victim];
+	const no = (/** @type {string} */ code, /** @type {string} */ message) => ({
+		code,
+		message,
+	});
+	if (!k || !v)
+		return no("missing", "Pick who got the kill and who went down.");
+	if (!k.active || !v.active)
+		return no("retired", "That character isn't in the game anymore.");
+	if (k.id === v.id) return no("self", "Nobody can kill themselves.");
+	if (k.team === v.team)
+		return no("teammate", `${k.player} and ${v.player} are on the same team.`);
+	if (kills.some((x) => x.killer === k.id && x.victim === v.id))
+		return no(
+			"repeat",
+			`${k.hero} already killed ${v.hero}. Each person can only be killed once.`,
+		);
+	if (
+		kills.some(
+			(x) =>
+				x.rps &&
+				((x.killer === k.id && x.victim === v.id) ||
+					(x.killer === v.id && x.victim === k.id)),
+		)
+	)
+		return no(
+			"rps-pair",
+			`${k.hero} and ${v.hero} already settled it with rock paper scissors, so neither can kill the other.`,
+		);
+	if (kills.some((x) => x.rps && x.victim === v.id && x.day === draft.day))
+		return no(
+			"rps-day",
+			`${v.player} lost a rock paper scissors fight on this day, so nobody else can kill them until the next day.`,
+		);
+	return null;
+}
+
+/**
  * Why a kill isn't allowed, or null if it is.
  * @param {Draft} draft
  * @param {Kill[]} kills
  * @param {Record<string, Character>} chars
  */
 export function blocker(draft, kills, chars) {
-	const k = chars[draft.killer];
-	const v = chars[draft.victim];
-	if (!k || !v) return "Pick who got the kill and who went down.";
-	if (!k.active || !v.active) return "That character isn't in the game anymore.";
-	if (k.id === v.id) return "Nobody can kill themselves.";
-	if (k.team === v.team) return `${k.player} and ${v.player} are on the same team.`;
-	if (kills.some((x) => x.killer === k.id && x.victim === v.id))
-		return `${k.hero} already killed ${v.hero}. Each person can only be killed once.`;
-	if (
-		kills.some(
-			(x) =>
-				x.rps &&
-				((x.killer === k.id && x.victim === v.id) || (x.killer === v.id && x.victim === k.id)),
-		)
-	)
-		return `${k.hero} and ${v.hero} already settled it with rock paper scissors, so neither can kill the other.`;
-	if (kills.some((x) => x.rps && x.victim === v.id && x.day === draft.day))
-		return `${v.player} lost a rock paper scissors fight on this day, so nobody else can kill them until the next day.`;
-	return null;
+	return check(draft, kills, chars)?.message ?? null;
 }
 
 /**
@@ -76,7 +104,9 @@ export function blocker(draft, kills, chars) {
  * @param {Kill[]} kills
  */
 export function outOn(day, kills) {
-	return new Set(kills.filter((x) => x.knockout && x.day === day).map((x) => x.victim));
+	return new Set(
+		kills.filter((x) => x.knockout && x.day === day).map((x) => x.victim),
+	);
 }
 
 /**

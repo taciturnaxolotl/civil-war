@@ -12,19 +12,18 @@ Characters are the fixed points of the game. From `/admin` you can change who pl
 bun install
 bunx wrangler d1 create civil-war     # paste the id into wrangler.jsonc
 bun run db:migrate                    # local database, seeded with the cast
-printf 'ADMIN_PASSWORD=...\nPLAYER_PASSWORD=...\n' > .dev.vars
+printf 'PLAYER_PASSWORD=...\n' > .dev.vars   # optional
 bun run dev
 ```
 
 To ship it:
 
 ```sh
-bunx wrangler secret put ADMIN_PASSWORD
 bunx wrangler secret put PLAYER_PASSWORD   # optional
 bun run deploy
 ```
 
-`ADMIN_PASSWORD` turns on `/admin`; without it the admin page stays locked. `PLAYER_PASSWORD` is optional. When it is set, logging or undoing a kill asks for it once per device; when it isn't, anyone with the link can log kills. Changing either password signs everyone out.
+`/admin` has no login; anyone who knows the address can use it. `PLAYER_PASSWORD` is optional. When it is set, logging a kill asks for it once per device; when it isn't, anyone with the link can log kills. Changing it signs everyone out.
 
 `bun test` runs the API against a throwaway local D1, and `bun run check` typechecks.
 
