@@ -9,6 +9,9 @@ import {
 	today,
 	weekStart,
 	weeks,
+	canFight,
+	creditTeam,
+	teamOn,
 } from "/rules.js";
 
 let characters = [];
@@ -30,6 +33,8 @@ const SHORT = {
 	repeat: "Already got them",
 	"rps-pair": "Settled by RPS",
 	"rps-day": "Safe today (lost RPS)",
+	"free-agent-day": "Already got today",
+	out: "You're out today",
 };
 
 const canWrite = () => !session.playerPasswordRequired || !!session.role;
@@ -45,6 +50,12 @@ function draft() {
 		special: entry.method === "special",
 		bonus: entry.method === "special" && !!chars[entry.killer]?.bonus && $("bonus").checked,
 	};
+}
+
+function sideLabel(c, day) {
+	if (c.freeAgent) return "Free agent";
+	const t = teamOn(c, day, kills);
+	return t === c.team ? TEAMS[t] : `${TEAMS[t]} today`;
 }
 
 function renderEntry() {
@@ -67,14 +78,14 @@ function renderEntry() {
 								.join("")}</div>`,
 					)
 					.join("")
-			: `<div class="me"><span class="dot ${k.team}"></span><div><b>${name(k)}</b><small>${esc(k.hero)} · ${TEAMS[k.team]}</small></div><button type="button" class="link" data-change>Change</button></div>`);
+			: `<div class="me"><span class="dot ${k.team}"></span><div><b>${name(k)}</b><small>${esc(k.hero)} · ${sideLabel(k, d.day)}</small></div><button type="button" class="link" data-change>Change</button></div>`);
 
 	$("victimStep").hidden = picking;
 	let v = null;
 	if (!picking) {
 		const out = outOn(d.day, kills);
 		const foes = active()
-			.filter((c) => c.team !== k.team)
+			.filter((c) => c.active && canFight(k, c, d.day, kills))
 			.sort((a, b) => (b.id === k.target) - (a.id === k.target));
 		const why = Object.fromEntries(
 			foes.map((c) => [
@@ -88,11 +99,16 @@ function renderEntry() {
 		$("victims").innerHTML = foes
 			.map((c) => {
 				const no = why[c.id];
+				const turned = !c.freeAgent && teamOn(c, d.day, kills) !== c.team;
 				const sub = no
 					? (SHORT[no.code] ?? "Unavailable")
 					: out.has(c.id)
 						? `${esc(c.hero)} · out today`
-						: esc(c.hero);
+						: turned
+							? `${esc(c.hero)} · ${TEAMS[teamOn(c, d.day, kills)]} today`
+							: k.freeAgent
+								? `${esc(c.hero)} · counts for ${TEAMS[creditTeam(k, c, d.day, kills)]}`
+								: esc(c.hero);
 				const star =
 					c.id === k.target
 						? `<span class="star" title="Your nemesis">★</span>`
@@ -259,6 +275,8 @@ function render() {
 			const tags = [];
 			if (!c.active) tags.push(`<span class="pill">Retired</span>`);
 			if (out.has(c.id)) tags.push(`<span class="pill out">Out today</span>`);
+			if (!c.freeAgent && teamOn(c, t, kills) !== c.team)
+				tags.push(`<span class="pill cd">${TEAMS[teamOn(c, t, kills)]} today</span>`);
 			if (cooldownThrough(c, kills, t))
 				tags.push(`<span class="pill cd">Special on cooldown</span>`);
 			const was = s.was.size
@@ -287,7 +305,11 @@ function render() {
 				: k.special
 					? `Special: ${esc(k.specialDesc)}${bonus}`
 					: "Regular kill";
-			html += `<li><span class="p" style="color:var(--${k.killerTeam})">${k.points}</span><div class="t"><b>${esc(k.killerPlayer)}</b> got <b>${esc(k.victimPlayer)}</b><small>${esc(k.killerHero)} → ${esc(k.victimHero)} · ${detail}</small></div>${canWrite() ? `<button class="x" data-id="${k.id}" type="button">Undo</button>` : "<span></span>"}</li>`;
+			const side =
+				chars[k.killer] && k.killerTeam !== chars[k.killer].team
+					? ` · for ${TEAMS[k.killerTeam]}`
+					: "";
+			html += `<li><span class="p" style="color:var(--${k.killerTeam})">${k.points}</span><div class="t"><b>${esc(k.killerPlayer)}</b> got <b>${esc(k.victimPlayer)}</b><small>${esc(k.killerHero)} → ${esc(k.victimHero)} · ${detail}${side}</small></div>${canWrite() ? `<button class="x" data-id="${k.id}" type="button">Undo</button>` : "<span></span>"}</li>`;
 		}
 		$("feed").innerHTML = html;
 	}

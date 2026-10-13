@@ -7,20 +7,68 @@
  * @typedef {{
  *   id: string, hero: string, player: string, team: Team, target: string | null,
  *   special: string, bonus: string | null, knocksOut: boolean, cooldown: number,
- *   sort: number, active: boolean
+ *   freeAgent: boolean, converts: boolean, sort: number, active: boolean
  * }} Character
  * @typedef {{
  *   id: number, day: string, at: string, killer: string, victim: string,
  *   killerPlayer: string, killerHero: string, killerTeam: Team,
  *   victimPlayer: string, victimHero: string, victimTeam: Team,
  *   rps: boolean, special: boolean, bonus: boolean, note: string,
- *   specialDesc: string, knockout: boolean, points: number
+ *   specialDesc: string, knockout: boolean, converts: boolean, points: number
  * }} Kill
  * @typedef {{ killer: string, victim: string, day: string, rps?: boolean, special?: boolean, bonus?: boolean }} Draft
  */
 
 /** @type {Record<Team, string>} */
 export const TEAMS = { cap: "Team Cap", stark: "Team Stark" };
+
+/** @param {Team} t @returns {Team} */
+export const other = (t) => (t === "cap" ? "stark" : "cap");
+
+/**
+ * The team a character fights for on a day. A converting special flips its
+ * target to the killer's team for the rest of that day, counting only kills
+ * logged after it (pass `at` to ask about a moment; omit it for now).
+ * @param {Character} c
+ * @param {string} day
+ * @param {Kill[]} kills
+ * @param {string} [at]
+ * @returns {Team}
+ */
+export function teamOn(c, day, kills, at) {
+	const flip = kills
+		.filter((x) => x.converts && x.victim === c.id && x.day === day && (!at || x.at < at))
+		.sort((a, b) => a.at.localeCompare(b.at))
+		.pop();
+	return flip ? flip.killerTeam : c.team;
+}
+
+/**
+ * Whether two characters are on opposite sides. A free agent is on nobody's
+ * side, so they can fight anyone and anyone can fight them.
+ * @param {Character} k
+ * @param {Character} v
+ * @param {string} day
+ * @param {Kill[]} kills
+ */
+export function canFight(k, v, day, kills) {
+	if (k.id === v.id) return false;
+	if (k.freeAgent || v.freeAgent) return true;
+	return teamOn(k, day, kills) !== teamOn(v, day, kills);
+}
+
+/**
+ * The team a kill's points go to. A free agent's kills count for whichever
+ * team the victim isn't on.
+ * @param {Character} k
+ * @param {Character} v
+ * @param {string} day
+ * @param {Kill[]} kills
+ * @returns {Team}
+ */
+export function creditTeam(k, v, day, kills) {
+	return k.freeAgent ? other(teamOn(v, day, kills)) : teamOn(k, day, kills);
+}
 
 /**
  * The +1 only exists for characters whose rules give them one, and only on top
@@ -69,8 +117,17 @@ export function check(draft, kills, chars) {
 	if (!k.active || !v.active)
 		return no("retired", "That character isn't in the game anymore.");
 	if (k.id === v.id) return no("self", "Nobody can kill themselves.");
-	if (k.team === v.team)
-		return no("teammate", `${k.player} and ${v.player} are on the same team.`);
+	if (!canFight(k, v, draft.day, kills))
+		return no(
+			"teammate",
+			`${k.player} and ${v.player} are on the same team${teamOn(k, draft.day, kills) !== k.team || teamOn(v, draft.day, kills) !== v.team ? " today" : ""}.`,
+		);
+	// Knocked out of commission by a special: no more kills for them today.
+	if (kills.some((x) => x.knockout && x.victim === k.id && x.day === draft.day))
+		return no("out", `${k.player} is out of commission today, so they can't get anyone until tomorrow.`);
+	// A free agent has everyone hunting them, so they only go down once a day.
+	if (v.freeAgent && kills.some((x) => x.victim === v.id && x.day === draft.day))
+		return no("free-agent-day", `${v.player} has already been killed today. Free agents can only go down once a day.`);
 	// Points reset every week, and so do the once-only limits.
 	const week = weekStart(draft.day);
 	kills = kills.filter((x) => weekStart(x.day) === week);

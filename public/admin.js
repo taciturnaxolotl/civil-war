@@ -36,7 +36,9 @@ function charCard(c) {
 		<label class="f wide">Bonus (+1)<input type="text" name="bonus" maxlength="200" value="${esc(c.bonus ?? "")}" placeholder="None"></label>
 		<label class="f">Cooldown days<input type="number" name="cooldown" min="0" max="999" value="${c.cooldown}"></label>
 		<label class="f">Order<input type="number" name="sort" min="0" max="999" value="${c.sort}"></label>
-		<label class="inline"><input type="checkbox" name="knocksOut"${c.knocksOut ? " checked" : ""}> Special knocks target out for the day</label>
+		<label class="inline"><input type="checkbox" name="knocksOut"${c.knocksOut ? " checked" : ""}> Special knocks target out for the day (no kills for them until tomorrow)</label>
+		<label class="inline"><input type="checkbox" name="converts"${c.converts ? " checked" : ""}> Special turns target to this team for the rest of the day</label>
+		<label class="inline"><input type="checkbox" name="freeAgent"${c.freeAgent ? " checked" : ""}> Free agent: fights either side, kills count for the other team, can only be killed once a day</label>
 		<label class="inline"><input type="checkbox" name="active"${c.active ? " checked" : ""}> In the game</label>
 		<div class="acts"><button class="x" type="button" data-remove>Remove</button><button class="go" type="submit">Save</button></div>
 	</form>`;
@@ -113,6 +115,8 @@ $("chars").addEventListener("submit", (e) => {
 		cooldown: Number(f.get("cooldown")),
 		sort: Number(f.get("sort")),
 		knocksOut: f.has("knocksOut"),
+		converts: f.has("converts"),
+		freeAgent: f.has("freeAgent"),
 		active: f.has("active"),
 	};
 	act(

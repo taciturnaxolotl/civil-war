@@ -1,10 +1,12 @@
 import {
 	addDays,
 	blocker,
+	creditTeam,
 	hasBonus,
 	isDay,
 	points,
 	TEAMS,
+	teamOn,
 	usesSpecial,
 	weekStart,
 	type Character,
@@ -131,6 +133,8 @@ async function loadCharacters(env: Env): Promise<Character[]> {
 		special: String(r.special),
 		bonus: (r.bonus as string | null) ?? null,
 		knocksOut: !!r.knocks_out,
+		freeAgent: !!r.free_agent,
+		converts: !!r.converts,
 		cooldown: Number(r.cooldown),
 		sort: Number(r.sort),
 		active: !!r.active,
@@ -159,6 +163,7 @@ async function loadKills(env: Env): Promise<Kill[]> {
 		note: String(r.note),
 		specialDesc: String(r.special_desc),
 		knockout: !!r.knockout,
+		converts: !!r.converts,
 		points: Number(r.points),
 	}));
 }
@@ -210,14 +215,18 @@ async function logKill(req: Request, env: Env): Promise<Response> {
 	const bonus = hasBonus(k, draft);
 	const note = bonus ? str(body.note, 140).trim() : "";
 	const pts = points(k, { ...draft, special, bonus });
+	// Which side each was on at this moment: conversions and free agents mean
+	// that isn't always the team on their card.
+	const killerTeam = creditTeam(k, v, draft.day, kills);
+	const victimTeam = teamOn(v, draft.day, kills);
 
 	// The check above ran on a snapshot; repeat the once-a-week test inside the
 	// insert so a double tap can't sneak a second copy in.
 	const week = weekStart(draft.day);
 	const row = await env.DB.prepare(
 		`INSERT INTO kills (day, at, killer, victim, killer_player, killer_hero, killer_team,
-			victim_player, victim_hero, victim_team, rps, special, bonus, note, special_desc, knockout, points)
-		SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17
+			victim_player, victim_hero, victim_team, rps, special, bonus, note, special_desc, knockout, points, converts)
+		SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?20
 		WHERE NOT EXISTS (
 			SELECT 1 FROM kills WHERE killer = ?3 AND victim = ?4 AND day BETWEEN ?18 AND ?19
 		)
@@ -230,10 +239,10 @@ async function logKill(req: Request, env: Env): Promise<Response> {
 			v.id,
 			k.player,
 			k.hero,
-			k.team,
+			killerTeam,
 			v.player,
 			v.hero,
-			v.team,
+			victimTeam,
 			+draft.rps,
 			+special,
 			+bonus,
@@ -243,6 +252,7 @@ async function logKill(req: Request, env: Env): Promise<Response> {
 			pts,
 			week,
 			addDays(week, 6),
+			+(special && k.converts),
 		)
 		.first<{ id: number }>();
 	if (!row)
@@ -320,6 +330,8 @@ async function characterValues(
 	if (body.special !== undefined) out.special = str(body.special, 200).trim();
 	if (body.bonus !== undefined) out.bonus = str(body.bonus, 200).trim() || null;
 	if (body.knocksOut !== undefined) out.knocks_out = +!!body.knocksOut;
+	if (body.freeAgent !== undefined) out.free_agent = +!!body.freeAgent;
+	if (body.converts !== undefined) out.converts = +!!body.converts;
 	if (body.active !== undefined) out.active = +!!body.active;
 	for (const key of ["cooldown", "sort"] as const) {
 		if (body[key] === undefined) continue;

@@ -196,6 +196,62 @@ describe("kills", () => {
 	});
 });
 
+describe("sides", () => {
+	test("Black Widow fights either side and scores for the other team", async () => {
+		const player = await login("player-pw");
+		expect((await kill(player, { killer: "widow", victim: "ironman" })).res.status).toBe(201);
+		expect((await kill(player, { killer: "widow", victim: "falcon" })).res.status).toBe(201);
+		expect((await kill(player, { killer: "spidey", victim: "widow" })).res.status).toBe(201);
+		const [onStark, onCap, onWidow] = (await call("/api/state")).data.kills;
+		expect(onStark).toMatchObject({ victim: "ironman", killerTeam: "cap" });
+		expect(onCap).toMatchObject({ victim: "falcon", killerTeam: "stark" });
+		expect(onWidow).toMatchObject({ killer: "spidey", killerTeam: "stark" });
+	});
+
+	test("Black Widow can only be killed once a day", async () => {
+		const player = await login("player-pw");
+		const status = async (body: Record<string, unknown>) => (await kill(player, body)).res.status;
+		expect(await status({ killer: "spidey", victim: "widow" })).toBe(201);
+		expect(await status({ killer: "falcon", victim: "widow" })).toBe(409);
+		expect(await status({ killer: "falcon", victim: "widow", day: "2026-10-13" })).toBe(201);
+	});
+
+	test("Hawkeye's special puts Black Widow out of commission for the day", async () => {
+		const player = await login("player-pw");
+		const status = async (body: Record<string, unknown>) => (await kill(player, body)).res.status;
+		expect(await status({ killer: "spidey", victim: "widow" })).toBe(201);
+		// Once a day for everyone, nemesis included.
+		expect(await status({ killer: "hawkeye", victim: "widow", special: true })).toBe(409);
+		expect(await status({ killer: "hawkeye", victim: "widow", special: true, day: "2026-10-13" })).toBe(201);
+		expect(await status({ killer: "widow", victim: "falcon", day: "2026-10-13" })).toBe(409);
+		expect(await status({ killer: "widow", victim: "falcon", day: "2026-10-14" })).toBe(201);
+	});
+
+	test("Iron Man's code words turn Bucky for the rest of that day only", async () => {
+		const player = await login("player-pw");
+		const status = async (body: Record<string, unknown>) => (await kill(player, body)).res.status;
+		// Before she's turned, Bucky is Cap and can't touch her own team.
+		expect(await status({ killer: "bucky", victim: "falcon" })).toBe(409);
+		expect(await status({ killer: "ironman", victim: "bucky", special: true })).toBe(201);
+		// Now she's Stark: Cap is fair game and counts for Stark, Stark isn't.
+		expect(await status({ killer: "bucky", victim: "falcon" })).toBe(201);
+		expect(await status({ killer: "bucky", victim: "panther" })).toBe(409);
+		expect(await status({ killer: "warmachine", victim: "bucky" })).toBe(409);
+		// Next day she's back on Cap.
+		expect(await status({ killer: "bucky", victim: "panther", day: "2026-10-13" })).toBe(201);
+		const s = (await call("/api/state")).data;
+		expect(s.kills.find((k: any) => k.victim === "bucky")).toMatchObject({ converts: true, knockout: false });
+		expect(s.kills.find((k: any) => k.victim === "falcon")).toMatchObject({ killerTeam: "stark" });
+		expect(s.kills.find((k: any) => k.victim === "panther")).toMatchObject({ killerTeam: "cap" });
+	});
+
+	test("a regular kill on Bucky doesn't turn her", async () => {
+		const player = await login("player-pw");
+		await kill(player, { killer: "ironman", victim: "bucky" });
+		expect((await kill(player, { killer: "bucky", victim: "falcon" })).res.status).toBe(409);
+	});
+});
+
 describe("remapping", () => {
 	test("leaves already scored kills with their original player, team and points", async () => {
 		const admin = await login("player-pw");
