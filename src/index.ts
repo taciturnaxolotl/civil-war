@@ -1,5 +1,4 @@
 import {
-	addDays,
 	blocker,
 	creditTeam,
 	hasBonus,
@@ -8,7 +7,6 @@ import {
 	TEAMS,
 	teamOn,
 	usesSpecial,
-	weekStart,
 	type Character,
 	type Kill,
 } from "../public/rules.js";
@@ -223,15 +221,14 @@ async function logKill(req: Request, env: Env): Promise<Response> {
 	const killerTeam = creditTeam(k, v, draft.day, kills);
 	const victimTeam = teamOn(v, draft.day, kills);
 
-	// The check above ran on a snapshot; repeat the once-a-week test inside the
+	// The check above ran on a snapshot; repeat the once-a-day test inside the
 	// insert so a double tap can't sneak a second copy in.
-	const week = weekStart(draft.day);
 	const row = await env.DB.prepare(
 		`INSERT INTO kills (day, at, killer, victim, killer_player, killer_hero, killer_team,
 			victim_player, victim_hero, victim_team, rps, special, bonus, note, special_desc, knockout, points, converts)
 		SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?20
 		WHERE NOT EXISTS (
-			SELECT 1 FROM kills WHERE killer = ?3 AND victim = ?4 AND day BETWEEN ?18 AND ?19
+			SELECT 1 FROM kills WHERE killer = ?3 AND victim = ?4 AND day = ?1
 		)
 		RETURNING id`,
 	)
@@ -253,15 +250,15 @@ async function logKill(req: Request, env: Env): Promise<Response> {
 			special ? k.special : "",
 			+(special && k.knocksOut),
 			pts,
-			week,
-			addDays(week, 6),
+			null,
+			null,
 			+(special && k.converts),
 		)
 		.first<{ id: number }>();
 	if (!row)
 		throw new HttpError(
 			409,
-			`${k.hero} already killed ${v.hero} this week. Each person can only be killed once a week.`,
+			`${k.hero} already killed ${v.hero} today. Each person can only be killed once a day.`,
 		);
 	return json({ ok: true, id: row.id, points: pts }, 201);
 }

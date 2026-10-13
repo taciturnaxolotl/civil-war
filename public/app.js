@@ -31,9 +31,8 @@ const entry = {
 };
 
 const SHORT = {
-	repeat: "Already got them",
-	"rps-pair": "Settled by RPS",
-	"rps-day": "Safe today (lost RPS)",
+	repeat: "Already got them today",
+	"rps-pair": "Settled by RPS today",
 	"free-agent-day": "Already got today",
 	out: "You're out today",
 };
@@ -350,8 +349,12 @@ $("form").addEventListener("click", (e) => {
 	else return;
 	renderEntry();
 });
-for (const id of ["bonus", "day"])
-	$(id).addEventListener("change", renderEntry);
+$("bonus").addEventListener("change", renderEntry);
+$("day").addEventListener("change", () => {
+	// Picking an earlier day on purpose (logging a late kill) pins it there.
+	followToday = $("day").value === today();
+	renderEntry();
+});
 
 $("form").addEventListener("submit", async (e) => {
 	e.preventDefault();
@@ -423,7 +426,23 @@ $("password").addEventListener("keydown", (e) => {
 	}
 });
 
+// The date field starts on today and follows the calendar, so a phone left
+// open overnight doesn't keep judging kills by yesterday's rules.
+let followToday = true;
 $("day").value = today();
+let shownDay = today();
+function rollOver() {
+	const t = today();
+	if (t === shownDay) return;
+	shownDay = t;
+	if (followToday) $("day").value = t;
+	// Standings, "out today" tags and the weekly reset all hang off the date.
+	if (loaded) render();
+}
+setInterval(rollOver, 30000);
+document.addEventListener("visibilitychange", () => {
+	if (!document.hidden) rollOver();
+});
 api("/api/session")
 	.then((s) => {
 		session = s;

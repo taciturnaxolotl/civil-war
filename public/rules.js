@@ -142,13 +142,12 @@ export function check(draft, kills, chars) {
 	// A free agent has everyone hunting them, so they only go down once a day.
 	if (v.freeAgent && kills.some((x) => x.victim === v.id && x.day === draft.day))
 		return no("free-agent-day", `${v.player} has already been killed today. Free agents can only go down once a day.`);
-	// Points reset every week, and so do the once-only limits.
-	const week = weekStart(draft.day);
-	kills = kills.filter((x) => weekStart(x.day) === week);
+	// The once-only limits reset every day.
+	kills = kills.filter((x) => x.day === draft.day);
 	if (kills.some((x) => x.killer === k.id && x.victim === v.id))
 		return no(
 			"repeat",
-			`${k.hero} already killed ${v.hero} this week. Each person can only be killed once a week.`,
+			`${k.hero} already killed ${v.hero} today. Each person can only be killed once a day.`,
 		);
 	if (
 		kills.some(
@@ -160,12 +159,7 @@ export function check(draft, kills, chars) {
 	)
 		return no(
 			"rps-pair",
-			`${k.hero} and ${v.hero} already settled it with rock paper scissors this week, so neither can kill the other until next week.`,
-		);
-	if (kills.some((x) => x.rps && x.victim === v.id && x.day === draft.day))
-		return no(
-			"rps-day",
-			`${v.player} lost a rock paper scissors fight on this day, so nobody else can kill them until the next day.`,
+			`${k.hero} and ${v.hero} already settled it with rock paper scissors today, so neither can kill the other until tomorrow.`,
 		);
 	return null;
 }

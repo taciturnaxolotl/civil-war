@@ -129,17 +129,16 @@ describe("kills", () => {
 		expect(data.points).toBe(1);
 	});
 
-	test("limits reset every week", async () => {
+	test("limits reset every day", async () => {
 		const player = await login("player-pw");
 		const status = async (body: Record<string, unknown>) =>
 			(await kill(player, body)).res.status;
-		// 2026-10-12 is a Monday; that week runs through Sunday the 18th.
 		expect(await status({ killer: "warmachine", victim: "falcon" })).toBe(201);
-		expect(await status({ killer: "warmachine", victim: "falcon", day: "2026-10-18" })).toBe(409);
-		expect(await status({ killer: "warmachine", victim: "falcon", day: "2026-10-19" })).toBe(201);
+		expect(await status({ killer: "warmachine", victim: "falcon" })).toBe(409);
+		expect(await status({ killer: "warmachine", victim: "falcon", day: "2026-10-13" })).toBe(201);
 		expect(await status({ killer: "cap", victim: "widow", rps: true, day: "2026-10-14" })).toBe(201);
-		expect(await status({ killer: "widow", victim: "cap", day: "2026-10-18" })).toBe(409);
-		expect(await status({ killer: "widow", victim: "cap", day: "2026-10-20" })).toBe(201);
+		expect(await status({ killer: "widow", victim: "cap", day: "2026-10-14" })).toBe(409);
+		expect(await status({ killer: "widow", victim: "cap", day: "2026-10-15" })).toBe(201);
 	});
 
 	test("reject repeats, teammates and rps rematches", async () => {
@@ -157,24 +156,15 @@ describe("kills", () => {
 				.status,
 		).toBe(409);
 		expect(
-			(await kill(player, { killer: "cap", victim: "widow", rps: true })).res
+			(await kill(player, { killer: "cap", victim: "vision", rps: true })).res
 				.status,
 		).toBe(201);
 		expect(
-			(await kill(player, { killer: "widow", victim: "cap" })).res.status,
+			(await kill(player, { killer: "vision", victim: "cap" })).res.status,
 		).toBe(409);
-		// Lost rps today, so nobody else gets Widow until tomorrow.
+		// Losing rps only protects Vision from Cap; anyone else can still get him.
 		expect(
-			(await kill(player, { killer: "falcon", victim: "widow" })).res.status,
-		).toBe(409);
-		expect(
-			(
-				await kill(player, {
-					killer: "falcon",
-					victim: "widow",
-					day: "2026-10-13",
-				})
-			).res.status,
+			(await kill(player, { killer: "falcon", victim: "vision" })).res.status,
 		).toBe(201);
 	});
 
