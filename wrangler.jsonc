@@ -7,9 +7,11 @@
 	"assets": {
 		"binding": "ASSETS",
 		"directory": "public",
-		// The API lives in the worker; everything else is a static file.
+		// The API lives in the worker; everything else is a static file. The
+		// home page also passes through so its social tags get absolute URLs.
 		"run_worker_first": [
-			"/api/*"
+			"/api/*",
+			"/"
 		]
 	},
 	"observability": {

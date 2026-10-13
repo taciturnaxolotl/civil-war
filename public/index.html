@@ -4,6 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Civil War Scoreboard</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#0f1219">
+<meta name="description" content="Team Cap vs. Team Stark. Let the thunderdome begin.">
+<meta property="og:site_name" content="Civil War">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Civil War">
+<meta property="og:description" content="Team Cap vs. Team Stark. Let the thunderdome begin.">
+<meta property="og:url" content="/">
+<meta property="og:image" content="/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Civil War: Team Cap vs. Team Stark">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="/og.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <link rel="stylesheet" href="/style.css">
@@ -16,7 +31,7 @@
     <p class="sub">Let the thunderdome begin</p>
   </header>
 
-  <section class="versus" aria-label="Team scores">
+  <section class="versus" aria-label="Team scores this week">
     <div class="side cap"><div class="lbl">Team Cap</div><div class="pts num" id="capPts">0</div></div>
     <div class="vs">vs</div>
     <div class="side stark"><div class="lbl">Team Stark</div><div class="pts num" id="starkPts">0</div></div>
@@ -59,11 +74,19 @@
 
     <div class="col">
       <section class="panel">
-        <h2>Standings</h2>
+        <h2>Standings this week</h2>
         <div style="overflow-x:auto"><table>
           <thead><tr><th>#</th><th>Player</th><th class="r">Kills</th><th class="r">Pts</th></tr></thead>
           <tbody id="standings"></tbody>
         </table></div>
+      </section>
+      <section class="panel" id="chartPanel" hidden>
+        <div class="panel-head"><h2>Weeks won</h2><span class="legend"><span class="cap">Cap</span><span class="stark">Stark</span></span></div>
+        <div id="chart"></div>
+      </section>
+      <section class="panel" id="pastPanel" hidden>
+        <h2>Past weeks</h2>
+        <ul class="past" id="past"></ul>
       </section>
     </div>
   </div>

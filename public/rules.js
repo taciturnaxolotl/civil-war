@@ -63,10 +63,13 @@ export function check(draft, kills, chars) {
 	if (k.id === v.id) return no("self", "Nobody can kill themselves.");
 	if (k.team === v.team)
 		return no("teammate", `${k.player} and ${v.player} are on the same team.`);
+	// Points reset every week, and so do the once-only limits.
+	const week = weekStart(draft.day);
+	kills = kills.filter((x) => weekStart(x.day) === week);
 	if (kills.some((x) => x.killer === k.id && x.victim === v.id))
 		return no(
 			"repeat",
-			`${k.hero} already killed ${v.hero}. Each person can only be killed once.`,
+			`${k.hero} already killed ${v.hero} this week. Each person can only be killed once a week.`,
 		);
 	if (
 		kills.some(
@@ -78,7 +81,7 @@ export function check(draft, kills, chars) {
 	)
 		return no(
 			"rps-pair",
-			`${k.hero} and ${v.hero} already settled it with rock paper scissors, so neither can kill the other.`,
+			`${k.hero} and ${v.hero} already settled it with rock paper scissors this week, so neither can kill the other until next week.`,
 		);
 	if (kills.some((x) => x.rps && x.victim === v.id && x.day === draft.day))
 		return no(
@@ -148,4 +151,33 @@ export function today() {
 export function addDays(day, n) {
 	const [y, m, d] = day.split("-").map(Number);
 	return ymd(new Date(y, m - 1, d + n));
+}
+
+/**
+ * The Monday that starts the week a day falls in. Weeks run Monday to Sunday.
+ * @param {string} day
+ */
+export function weekStart(day) {
+	const [y, m, d] = day.split("-").map(Number);
+	const back = (new Date(y, m - 1, d).getDay() + 6) % 7;
+	return addDays(day, -back);
+}
+
+/**
+ * Team totals for every week with kills, oldest first. Points count for the
+ * team the killer was on when they scored.
+ * @param {Kill[]} kills
+ */
+export function weeks(kills) {
+	/** @type {Map<string, { start: string, end: string, cap: number, stark: number, winner: Team | null }>} */
+	const by = new Map();
+	for (const k of kills) {
+		const start = weekStart(k.day);
+		let w = by.get(start);
+		if (!w) by.set(start, (w = { start, end: addDays(start, 6), cap: 0, stark: 0, winner: null }));
+		w[k.killerTeam] += k.points;
+	}
+	const list = [...by.values()].sort((a, b) => a.start.localeCompare(b.start));
+	for (const w of list) w.winner = w.cap > w.stark ? "cap" : w.stark > w.cap ? "stark" : null;
+	return list;
 }

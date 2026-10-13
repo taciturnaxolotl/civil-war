@@ -5,6 +5,7 @@
 	"scripts": {
 		"dev": "wrangler dev",
 		"test": "bun test",
+		"og": "bun scripts/og-image.mjs",
 		"check": "tsc --noEmit",
 		"db:migrate": "wrangler d1 migrations apply civil-war --local",
 		"db:migrate:remote": "wrangler d1 migrations apply civil-war --remote",

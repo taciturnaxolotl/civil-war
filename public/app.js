@@ -7,6 +7,8 @@ import {
 	outOn,
 	points,
 	today,
+	weekStart,
+	weeks,
 } from "/rules.js";
 
 let characters = [];
@@ -143,11 +145,85 @@ function renderEntry() {
 	$("gate").hidden = canWrite();
 }
 
+function fmtShort(day) {
+	const [y, m, d] = day.split("-").map(Number);
+	return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function renderChart(thisWeek) {
+	const done = weeks(kills).filter((w) => w.start < thisWeek);
+	$("chartPanel").hidden = !done.length;
+	if (!done.length) return;
+
+	// Running count of weeks won, starting from nothing. A tied week moves
+	// neither line.
+	const list = [{ label: "Start", cap: 0, stark: 0 }];
+	for (const w of done) {
+		const prev = list[list.length - 1];
+		list.push({
+			label: fmtShort(w.start),
+			cap: prev.cap + (w.winner === "cap" ? 1 : 0),
+			stark: prev.stark + (w.winner === "stark" ? 1 : 0),
+		});
+	}
+
+	const W = 320;
+	const H = 150;
+	const L = 22;
+	const R = 10;
+	const T = 10;
+	const B = 22;
+	const max = Math.max(3, ...list.flatMap((w) => [w.cap, w.stark]));
+	const step = Math.max(1, Math.ceil(max / 4));
+	const top = step * Math.ceil(max / step);
+	const x = (i) => L + (i * (W - L - R)) / (list.length - 1);
+	const y = (v) => T + (H - T - B) * (1 - v / top);
+
+	let svg = "";
+	for (let v = 0; v <= top; v += step)
+		svg += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="grid-line"/><text x="${L - 6}" y="${y(v) + 3.5}" class="axis" text-anchor="end">${v}</text>`;
+	const every = Math.ceil(list.length / 6);
+	list.forEach((w, i) => {
+		if (i % every && i !== list.length - 1) return;
+		const anchor = i === 0 ? "start" : i === list.length - 1 ? "end" : "middle";
+		svg += `<text x="${x(i)}" y="${H - 6}" class="axis" text-anchor="${anchor}">${w.label}</text>`;
+	});
+	// Draw the leader last so it sits on top where the lines overlap.
+	const order = list.at(-1).cap >= list.at(-1).stark ? ["stark", "cap"] : ["cap", "stark"];
+	for (const team of order) {
+		const pts = list.map((w, i) => `${x(i).toFixed(1)},${y(w[team]).toFixed(1)}`);
+		svg += `<polyline points="${pts.join(" ")}" class="line ${team}"/>`;
+		list.forEach((w, i) => {
+			svg += `<circle cx="${x(i).toFixed(1)}" cy="${y(w[team]).toFixed(1)}" r="3.5" class="pt ${team}"><title>${TEAMS[team]} · ${w.label}: ${w[team]} ${w[team] === 1 ? "week" : "weeks"} won</title></circle>`;
+		});
+	}
+	$("chart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="Weeks won by each team over the semester">${svg}</svg>`;
+}
+
+function renderWeeks(thisWeek) {
+	renderChart(thisWeek);
+	const done = weeks(kills).filter((w) => w.start < thisWeek);
+	$("pastPanel").hidden = !done.length;
+	$("past").innerHTML = [...done]
+		.reverse()
+		.map((w) => {
+			const result = w.winner
+				? `<b style="color:var(--${w.winner})">${TEAMS[w.winner]}</b> won the week`
+				: "Tied, nobody gets the week";
+			return `<li><div>${result}<small>${fmtShort(w.start)} to ${fmtShort(w.end)}</small></div><span class="num"><span style="color:var(--cap)">${w.cap}</span> · <span style="color:var(--stark)">${w.stark}</span></span></li>`;
+		})
+		.join("");
+}
+
 function render() {
+	const thisWeek = weekStart(today());
+	renderWeeks(thisWeek);
+	// Everything below is this week only; points reset every Monday.
+	const weekKills = kills.filter((k) => weekStart(k.day) === thisWeek);
 	const by = {};
 	for (const c of characters) by[c.id] = { pts: 0, kills: 0, was: new Set() };
 	const team = { cap: 0, stark: 0 };
-	for (const k of kills) {
+	for (const k of weekKills) {
 		// Team totals use the team the killer was on when it happened.
 		team[k.killerTeam] = (team[k.killerTeam] ?? 0) + k.points;
 		const row = by[k.killer];
@@ -192,13 +268,13 @@ function render() {
 		})
 		.join("");
 
-	if (!kills.length) {
+	if (!weekKills.length) {
 		$("feed").innerHTML =
 			`<li class="empty" style="display:block">No kills yet! Go out and multiply death ^-^</li>`;
 	} else {
 		let html = "";
 		let lastDay = null;
-		for (const k of [...kills].reverse()) {
+		for (const k of [...weekKills].reverse()) {
 			if (k.day !== lastDay) {
 				html += `<li class="daytag" style="display:block">${fmtDay(k.day)}</li>`;
 				lastDay = k.day;

@@ -1,9 +1,11 @@
 import {
+	addDays,
 	blocker,
 	isDay,
 	points,
 	TEAMS,
 	usesSpecial,
+	weekStart,
 	type Character,
 	type Kill,
 } from "../public/rules.js";
@@ -33,6 +35,7 @@ const enc = new TextEncoder();
 export default {
 	async fetch(req, env): Promise<Response> {
 		const url = new URL(req.url);
+		if (url.pathname === "/") return withAbsoluteMeta(await env.ASSETS.fetch(req), url.origin);
 		if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(req);
 		try {
 			if (
@@ -95,6 +98,21 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
 	}
 
 	throw new HttpError(404, "Not found.");
+}
+
+/**
+ * Link previews want absolute URLs, and the page doesn't know its own domain,
+ * so fill it in on the way out.
+ */
+function withAbsoluteMeta(res: Response, origin: string) {
+	if (!res.headers.get("content-type")?.includes("text/html")) return res;
+	return new HTMLRewriter()
+		.on('meta[content^="/"]', {
+			element(el) {
+				el.setAttribute("content", origin + el.getAttribute("content"));
+			},
+		})
+		.transform(res);
 }
 
 /* ---------- reads ---------- */
@@ -192,41 +210,46 @@ async function logKill(req: Request, env: Env): Promise<Response> {
 	const note = bonus ? str(body.note, 140).trim() : "";
 	const pts = points(k, { ...draft, special, bonus });
 
-	try {
-		const row = await env.DB.prepare(
-			`INSERT INTO kills (day, at, killer, victim, killer_player, killer_hero, killer_team,
-				victim_player, victim_hero, victim_team, rps, special, bonus, note, special_desc, knockout, points)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+	// The check above ran on a snapshot; repeat the once-a-week test inside the
+	// insert so a double tap can't sneak a second copy in.
+	const week = weekStart(draft.day);
+	const row = await env.DB.prepare(
+		`INSERT INTO kills (day, at, killer, victim, killer_player, killer_hero, killer_team,
+			victim_player, victim_hero, victim_team, rps, special, bonus, note, special_desc, knockout, points)
+		SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17
+		WHERE NOT EXISTS (
+			SELECT 1 FROM kills WHERE killer = ?3 AND victim = ?4 AND day BETWEEN ?18 AND ?19
 		)
-			.bind(
-				draft.day,
-				new Date().toISOString(),
-				k.id,
-				v.id,
-				k.player,
-				k.hero,
-				k.team,
-				v.player,
-				v.hero,
-				v.team,
-				+draft.rps,
-				+special,
-				+bonus,
-				note,
-				special ? k.special : "",
-				+(special && k.knocksOut),
-				pts,
-			)
-			.first<{ id: number }>();
-		return json({ ok: true, id: row?.id, points: pts }, 201);
-	} catch (err) {
-		if (String(err).includes("UNIQUE"))
-			throw new HttpError(
-				409,
-				`${k.hero} already killed ${v.hero}. Each person can only be killed once.`,
-			);
-		throw err;
-	}
+		RETURNING id`,
+	)
+		.bind(
+			draft.day,
+			new Date().toISOString(),
+			k.id,
+			v.id,
+			k.player,
+			k.hero,
+			k.team,
+			v.player,
+			v.hero,
+			v.team,
+			+draft.rps,
+			+special,
+			+bonus,
+			note,
+			special ? k.special : "",
+			+(special && k.knocksOut),
+			pts,
+			week,
+			addDays(week, 6),
+		)
+		.first<{ id: number }>();
+	if (!row)
+		throw new HttpError(
+			409,
+			`${k.hero} already killed ${v.hero} this week. Each person can only be killed once a week.`,
+		);
+	return json({ ok: true, id: row.id, points: pts }, 201);
 }
 
 async function editKill(req: Request, env: Env, id: number): Promise<Response> {

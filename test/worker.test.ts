@@ -6,17 +6,19 @@ import {
 	expect,
 	test,
 } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { getPlatformProxy } from "wrangler";
 import worker, { type Env } from "../src/index";
 
 let proxy: Awaited<ReturnType<typeof getPlatformProxy<{ DB: D1Database }>>>;
 let env: Env;
 
-const schema = readFileSync(
-	`${import.meta.dir}/../migrations/0001_init.sql`,
-	"utf8",
-)
+const dir = `${import.meta.dir}/../migrations`;
+const schema = readdirSync(dir)
+	.filter((f) => f.endsWith(".sql"))
+	.sort()
+	.map((f) => readFileSync(`${dir}/${f}`, "utf8"))
+	.join("\n")
 	.split(/;\s*\n/)
 	.map((s: string) => s.replace(/^\s*--.*$/gm, "").trim())
 	.filter(Boolean);
@@ -117,6 +119,19 @@ describe("kills", () => {
 			note: "x",
 		});
 		expect(data.points).toBe(1);
+	});
+
+	test("limits reset every week", async () => {
+		const player = await login("player-pw");
+		const status = async (body: Record<string, unknown>) =>
+			(await kill(player, body)).res.status;
+		// 2026-10-12 is a Monday; that week runs through Sunday the 18th.
+		expect(await status({ killer: "warmachine", victim: "falcon" })).toBe(201);
+		expect(await status({ killer: "warmachine", victim: "falcon", day: "2026-10-18" })).toBe(409);
+		expect(await status({ killer: "warmachine", victim: "falcon", day: "2026-10-19" })).toBe(201);
+		expect(await status({ killer: "cap", victim: "widow", rps: true, day: "2026-10-14" })).toBe(201);
+		expect(await status({ killer: "widow", victim: "cap", day: "2026-10-18" })).toBe(409);
+		expect(await status({ killer: "widow", victim: "cap", day: "2026-10-20" })).toBe(201);
 	});
 
 	test("reject repeats, teammates and rps rematches", async () => {
@@ -291,5 +306,18 @@ describe("auth", () => {
 		});
 		const res = await worker.fetch(req as any, env);
 		expect(res.status).toBe(415);
+	});
+});
+
+describe("home page", () => {
+	test("social tags get absolute URLs", async () => {
+		const html = `<meta property="og:image" content="/og.png"><meta property="og:title" content="Civil War">`;
+		env.ASSETS = {
+			fetch: async () => new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } }),
+		} as unknown as Fetcher;
+		const res = await worker.fetch(new Request("https://war.example/") as any, env);
+		const body = await res.text();
+		expect(body).toContain('content="https://war.example/og.png"');
+		expect(body).toContain('content="Civil War"');
 	});
 });
