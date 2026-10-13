@@ -33,7 +33,7 @@ function charCard(c) {
 		<label class="f">Team<select name="team">${teams}</select></label>
 		<label class="f">Nemesis<select name="target">${targetOptions(c.id, c.target)}</select></label>
 		<label class="f wide">Special attack<input type="text" name="special" maxlength="200" value="${esc(c.special)}"></label>
-		<label class="f wide">Bonus (+1)<input type="text" name="bonus" maxlength="200" value="${esc(c.bonus ?? "")}" placeholder="Extra special (+1)"></label>
+		<label class="f wide">Bonus (+1)<input type="text" name="bonus" maxlength="200" value="${esc(c.bonus ?? "")}" placeholder="None"></label>
 		<label class="f">Cooldown days<input type="number" name="cooldown" min="0" max="999" value="${c.cooldown}"></label>
 		<label class="f">Order<input type="number" name="sort" min="0" max="999" value="${c.sort}"></label>
 		<label class="inline"><input type="checkbox" name="knocksOut"${c.knocksOut ? " checked" : ""}> Special knocks target out for the day</label>

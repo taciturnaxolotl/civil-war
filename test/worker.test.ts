@@ -109,6 +109,14 @@ describe("kills", () => {
 		});
 	});
 
+	test("ignore the bonus for characters whose rules don't have one", async () => {
+		const player = await login("player-pw");
+		const { data } = await kill(player, { killer: "cap", victim: "ironman", special: true, bonus: true, note: "x" });
+		expect(data.points).toBe(2);
+		const last = (await call("/api/state")).data.kills.at(-1);
+		expect(last).toMatchObject({ bonus: false, note: "" });
+	});
+
 	test("ignore special and bonus against someone who isn't the nemesis", async () => {
 		const player = await login("player-pw");
 		const { data } = await kill(player, {

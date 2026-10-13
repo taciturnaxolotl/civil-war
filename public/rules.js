@@ -22,7 +22,15 @@
 /** @type {Record<Team, string>} */
 export const TEAMS = { cap: "Team Cap", stark: "Team Stark" };
 
-export const EXTRA = "Extra special (+1)";
+/**
+ * The +1 only exists for characters whose rules give them one, and only on top
+ * of a special.
+ * @param {Character} killer
+ * @param {Draft} draft
+ */
+export function hasBonus(killer, draft) {
+	return usesSpecial(killer, draft) && !!draft.bonus && !!killer.bonus;
+}
 
 /**
  * A special only counts against the character's current nemesis, and never
@@ -39,7 +47,7 @@ export function usesSpecial(killer, draft) {
  * @param {Draft} draft
  */
 export function points(killer, draft) {
-	return usesSpecial(killer, draft) ? 2 + (draft.bonus ? 1 : 0) : 1;
+	return usesSpecial(killer, draft) ? 2 + (hasBonus(killer, draft) ? 1 : 0) : 1;
 }
 
 /**

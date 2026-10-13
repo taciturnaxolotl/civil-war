@@ -1,6 +1,7 @@
 import {
 	addDays,
 	blocker,
+	hasBonus,
 	isDay,
 	points,
 	TEAMS,
@@ -206,7 +207,7 @@ async function logKill(req: Request, env: Env): Promise<Response> {
 	const k = chars[draft.killer];
 	const v = chars[draft.victim];
 	const special = usesSpecial(k, draft);
-	const bonus = special && draft.bonus;
+	const bonus = hasBonus(k, draft);
 	const note = bonus ? str(body.note, 140).trim() : "";
 	const pts = points(k, { ...draft, special, bonus });
 

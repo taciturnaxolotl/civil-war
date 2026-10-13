@@ -43,7 +43,7 @@ function draft() {
 		day: $("day").value || today(),
 		rps: entry.method === "rps",
 		special: entry.method === "special",
-		bonus: entry.method === "special" && $("bonus").checked,
+		bonus: entry.method === "special" && !!chars[entry.killer]?.bonus && $("bonus").checked,
 	};
 }
 
@@ -114,11 +114,11 @@ function renderEntry() {
 	}
 	const special = entry.method === "special";
 	if (k) {
-		$("bonusText").textContent =
-			k.bonus?.replace(/\s*\(\+1[^)]*\)\s*$/, "") || "Pulled it off in style";
+		$("bonusText").textContent = k.bonus?.replace(/\s*\(\+1[^)]*\)\s*$/, "") ?? "";
 	}
-	$("bonusWrap").hidden = !special;
-	if (!special) $("bonus").checked = false;
+	const bonusOn = special && !!k?.bonus;
+	$("bonusWrap").hidden = !bonusOn;
+	if (!bonusOn) $("bonus").checked = false;
 	$("note").hidden = !$("bonus").checked;
 
 	const final = draft();
