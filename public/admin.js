@@ -34,6 +34,8 @@ function charCard(c) {
 		<label class="f">Nemesis<select name="target">${targetOptions(c.id, c.target)}</select></label>
 		<label class="f wide">Special attack<input type="text" name="special" maxlength="200" value="${esc(c.special)}"></label>
 		<label class="f wide">Bonus (+1)<input type="text" name="bonus" maxlength="200" value="${esc(c.bonus ?? "")}" placeholder="None"></label>
+		<label class="f">Special max points<input type="number" name="scaleMax" min="0" max="20" value="${c.scaleMax}" title="0 means the usual 2. Above 0, the logger picks 1 up to this."></label>
+		<label class="f">Points are counted in<input type="text" name="scaleLabel" maxlength="80" value="${esc(c.scaleLabel)}" placeholder="e.g. 10 minutes in the bag"></label>
 		<label class="f">Cooldown days<input type="number" name="cooldown" min="0" max="999" value="${c.cooldown}"></label>
 		<label class="f">Order<input type="number" name="sort" min="0" max="999" value="${c.sort}"></label>
 		<label class="inline"><input type="checkbox" name="knocksOut"${c.knocksOut ? " checked" : ""}> Special knocks target out for the day (no kills for them until tomorrow)</label>
@@ -113,6 +115,8 @@ $("chars").addEventListener("submit", (e) => {
 		special: f.get("special"),
 		bonus: f.get("bonus"),
 		cooldown: Number(f.get("cooldown")),
+		scaleMax: Number(f.get("scaleMax")),
+		scaleLabel: f.get("scaleLabel"),
 		sort: Number(f.get("sort")),
 		knocksOut: f.has("knocksOut"),
 		converts: f.has("converts"),

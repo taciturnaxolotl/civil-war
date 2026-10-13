@@ -704,3 +704,5 @@ input.day {
 .chart .line.cap{stroke:var(--cap)} .chart .line.stark{stroke:var(--stark)}
 .chart .pt{stroke:var(--panel);stroke-width:1.5}
 .chart .pt.cap{fill:var(--cap)} .chart .pt.stark{fill:var(--stark)}
+
+.scale{display:flex;flex-direction:column;gap:6px;font-size:.85rem;color:var(--muted)}

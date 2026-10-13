@@ -7,7 +7,8 @@
  * @typedef {{
  *   id: string, hero: string, player: string, team: Team, target: string | null,
  *   special: string, bonus: string | null, knocksOut: boolean, cooldown: number,
- *   freeAgent: boolean, converts: boolean, sort: number, active: boolean
+ *   freeAgent: boolean, converts: boolean, scaleMax: number, scaleLabel: string,
+ *   sort: number, active: boolean
  * }} Character
  * @typedef {{
  *   id: number, day: string, at: string, killer: string, victim: string,
@@ -16,7 +17,7 @@
  *   rps: boolean, special: boolean, bonus: boolean, note: string,
  *   specialDesc: string, knockout: boolean, converts: boolean, points: number
  * }} Kill
- * @typedef {{ killer: string, victim: string, day: string, rps?: boolean, special?: boolean, bonus?: boolean }} Draft
+ * @typedef {{ killer: string, victim: string, day: string, rps?: boolean, special?: boolean, bonus?: boolean, scale?: number }} Draft
  */
 
 /** @type {Record<Team, string>} */
@@ -95,7 +96,20 @@ export function usesSpecial(killer, draft) {
  * @param {Draft} draft
  */
 export function points(killer, draft) {
-	return usesSpecial(killer, draft) ? 2 + (hasBonus(killer, draft) ? 1 : 0) : 1;
+	if (!usesSpecial(killer, draft)) return 1;
+	const base = killer.scaleMax ? scaleOf(killer, draft) : 2;
+	return base + (hasBonus(killer, draft) ? 1 : 0);
+}
+
+/**
+ * For a special worth a variable amount (say a point per 10 minutes), the
+ * amount the logger entered, kept between 1 and the character's max.
+ * @param {Character} killer
+ * @param {Draft} draft
+ */
+export function scaleOf(killer, draft) {
+	const n = Math.round(Number(draft.scale) || 1);
+	return Math.min(Math.max(n, 1), killer.scaleMax);
 }
 
 /**

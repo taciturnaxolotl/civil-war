@@ -134,6 +134,8 @@ async function loadCharacters(env: Env): Promise<Character[]> {
 		bonus: (r.bonus as string | null) ?? null,
 		knocksOut: !!r.knocks_out,
 		freeAgent: !!r.free_agent,
+		scaleMax: Number(r.scale_max),
+		scaleLabel: String(r.scale_label),
 		converts: !!r.converts,
 		cooldown: Number(r.cooldown),
 		sort: Number(r.sort),
@@ -196,6 +198,7 @@ async function logKill(req: Request, env: Env): Promise<Response> {
 		rps: !!body.rps,
 		special: !!body.special,
 		bonus: !!body.bonus,
+		scale: Number(body.scale) || 1,
 	};
 	if (!isDay(draft.day)) throw new HttpError(400, "Pick a valid day.");
 
@@ -329,6 +332,12 @@ async function characterValues(
 	}
 	if (body.special !== undefined) out.special = str(body.special, 200).trim();
 	if (body.bonus !== undefined) out.bonus = str(body.bonus, 200).trim() || null;
+	if (body.scaleLabel !== undefined) out.scale_label = str(body.scaleLabel, 80).trim();
+	if (body.scaleMax !== undefined) {
+		const n = Number(body.scaleMax);
+		if (!Number.isInteger(n) || n < 0 || n > 20) throw new HttpError(400, "Max points must be 0 to 20.");
+		out.scale_max = n;
+	}
 	if (body.knocksOut !== undefined) out.knocks_out = +!!body.knocksOut;
 	if (body.freeAgent !== undefined) out.free_agent = +!!body.freeAgent;
 	if (body.converts !== undefined) out.converts = +!!body.converts;

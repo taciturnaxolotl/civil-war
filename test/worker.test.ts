@@ -196,6 +196,20 @@ describe("kills", () => {
 	});
 });
 
+describe("scaled specials", () => {
+	test("Falcon's chicken scores what was entered, between 1 and 3", async () => {
+		const player = await login("player-pw");
+		expect((await kill(player, { killer: "falcon", victim: "warmachine", special: true, scale: 2 })).data.points).toBe(2);
+		expect((await kill(player, { killer: "falcon", victim: "warmachine", special: true, scale: 9, day: "2026-10-19" })).data.points).toBe(3);
+		expect((await kill(player, { killer: "falcon", victim: "warmachine", special: true, scale: 0, day: "2026-10-26" })).data.points).toBe(1);
+	});
+
+	test("other specials still score 2 whatever scale is sent", async () => {
+		const player = await login("player-pw");
+		expect((await kill(player, { killer: "warmachine", victim: "wanda", special: true, scale: 3 })).data.points).toBe(2);
+	});
+});
+
 describe("sides", () => {
 	test("Black Widow fights either side and scores for the other team", async () => {
 		const player = await login("player-pw");

@@ -27,6 +27,7 @@ const entry = {
 	victim: "",
 	method: "regular",
 	picking: false,
+	scale: 1,
 };
 
 const SHORT = {
@@ -49,6 +50,7 @@ function draft() {
 		rps: entry.method === "rps",
 		special: entry.method === "special",
 		bonus: entry.method === "special" && !!chars[entry.killer]?.bonus && $("bonus").checked,
+		scale: entry.scale,
 	};
 }
 
@@ -131,6 +133,17 @@ function renderEntry() {
 	const special = entry.method === "special";
 	if (k) {
 		$("bonusText").textContent = k.bonus?.replace(/\s*\(\+1[^)]*\)\s*$/, "") ?? "";
+	}
+	const scaled = special && !!k?.scaleMax;
+	$("scaleWrap").hidden = !scaled;
+	if (scaled) {
+		entry.scale = Math.min(Math.max(entry.scale, 1), k.scaleMax);
+		$("scaleLabel").textContent = k.scaleLabel || "Points";
+		$("scale").style.gridTemplateColumns = `repeat(${k.scaleMax},1fr)`;
+		$("scale").innerHTML = Array.from(
+			{ length: k.scaleMax },
+			(_, i) => `<button type="button" data-scale="${i + 1}" aria-pressed="${entry.scale === i + 1}">${i + 1}</button>`,
+		).join("");
 	}
 	const bonusOn = special && !!k?.bonus;
 	$("bonusWrap").hidden = !bonusOn;
@@ -324,6 +337,7 @@ $("form").addEventListener("click", (e) => {
 		if (b.dataset.killer !== entry.killer) {
 			entry.victim = "";
 			entry.method = "regular";
+			entry.scale = 1;
 		}
 		entry.killer = b.dataset.killer;
 		entry.picking = false;
@@ -332,6 +346,7 @@ $("form").addEventListener("click", (e) => {
 	else if (b.dataset.victim)
 		entry.victim = entry.victim === b.dataset.victim ? "" : b.dataset.victim;
 	else if (b.dataset.method) entry.method = b.dataset.method;
+	else if (b.dataset.scale) entry.scale = Number(b.dataset.scale);
 	else return;
 	renderEntry();
 });
@@ -352,6 +367,7 @@ $("form").addEventListener("submit", async (e) => {
 		$("status").textContent = "";
 		entry.victim = "";
 		entry.method = "regular";
+		entry.scale = 1;
 		$("bonus").checked = false;
 		$("note").value = "";
 		renderEntry();
