@@ -33,10 +33,10 @@ const entry = {
 };
 
 const SHORT = {
-	repeat: "Already got them today",
-	"rps-pair": "Settled by RPS today",
+	repeat: "Eliminated",
+	"rps-pair": "Rock Paper Scissors",
 	"free-agent-day": "Already got today",
-	out: "You're out today",
+	out: "You're disabled",
 };
 
 const canWrite = () => !session.playerPasswordRequired || !!session.role;
@@ -108,7 +108,7 @@ function renderEntry() {
 				const sub = no
 					? (SHORT[no.code] ?? "Unavailable")
 					: out.has(c.id)
-						? `${esc(c.hero)} · out today`
+						? `${esc(c.hero)} · disabled`
 						: c.id === k.target && k.converts && !canControl(k, c, d.day, kills)
 							? `${esc(c.hero)} · can't control today`
 							: k.freeAgent
@@ -240,8 +240,8 @@ function renderWeeks(thisWeek) {
 		.reverse()
 		.map((w) => {
 			const result = w.winner
-				? `<b style="color:var(--${w.winner})">${TEAMS[w.winner]}</b> won the week`
-				: "Tied, nobody gets the week";
+				? `<b style="color:var(--${w.winner})">${TEAMS[w.winner]}</b> won`
+				: "Tied";
 			return `<li><div>${result}<small>${fmtShort(w.start)} to ${fmtShort(w.end)}</small></div><span class="num"><span style="color:var(--cap)">${w.cap}</span> · <span style="color:var(--stark)">${w.stark}</span></span></li>`;
 		})
 		.join("");
@@ -290,7 +290,7 @@ function render() {
 			}
 			const tags = [];
 			if (!c.active) tags.push(`<span class="pill">Retired</span>`);
-			if (out.has(c.id)) tags.push(`<span class="pill out">Out today</span>`);
+			if (out.has(c.id)) tags.push(`<span class="pill out">Disabled</span>`);
 			if (controlled(c, t, kills)) tags.push(`<span class="pill cd">Controlled today</span>`);
 			if (cooldownThrough(c, kills, t))
 				tags.push(`<span class="pill cd">Special on cooldown</span>`);
@@ -312,19 +312,12 @@ function render() {
 				html += `<li class="daytag" style="display:block">${fmtDay(k.day)}</li>`;
 				lastDay = k.day;
 			}
-			const bonus = k.bonus
-				? ` · bonus${k.note ? ": " + esc(k.note) : ""}`
-				: "";
-			const detail = k.rps
-				? "Won rock paper scissors"
-				: k.special
-					? `Special: ${esc(k.specialDesc)}${bonus}`
-					: "Regular kill";
+			const detail = k.rps ? "Rock Paper Scissors" : k.special ? `Special${k.bonus ? " +1" : ""}` : "Regular kill";
 			const side =
 				chars[k.killer] && k.killerTeam !== chars[k.killer].team
 					? ` · for ${TEAMS[k.killerTeam]}`
 					: "";
-			html += `<li><span class="p" style="color:var(--${k.killerTeam})">${k.points}</span><div class="t"><b>${esc(k.killerPlayer)}</b> got <b>${esc(k.victimPlayer)}</b><small>${esc(k.killerHero)} → ${esc(k.victimHero)} · ${detail}${side}</small></div>${canWrite() ? `<button class="x" data-id="${k.id}" type="button">Undo</button>` : "<span></span>"}</li>`;
+			html += `<li><span class="p" style="color:var(--${k.killerTeam})">${k.points}</span><div class="t"><b>${esc(k.killerPlayer)}</b> got <b>${esc(k.victimPlayer)}</b><small>${esc(k.killerHero)} → ${esc(k.victimHero)} via ${detail}${side}</small></div>${canWrite() ? `<button class="x" data-id="${k.id}" type="button">Undo</button>` : "<span></span>"}</li>`;
 		}
 		$("feed").innerHTML = html;
 	}
@@ -439,7 +432,7 @@ function rollOver() {
 	if (t === shownDay) return;
 	shownDay = t;
 	if (followToday) $("day").value = t;
-	// Standings, "out today" tags and the weekly reset all hang off the date.
+	// Standings, "disabled" tags and the weekly reset all hang off the date.
 	if (loaded) render();
 }
 setInterval(rollOver, 30000);
