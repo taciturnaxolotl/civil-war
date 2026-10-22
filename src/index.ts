@@ -1,5 +1,6 @@
 import {
 	blocker,
+	canControl,
 	creditTeam,
 	other,
 	hasBonus,
@@ -217,6 +218,7 @@ async function logKill(req: Request, env: Env): Promise<Response> {
 	// that isn't always the team on their card.
 	const killerTeam = creditTeam(k, v, draft.day, kills);
 	const victimTeam = v.team;
+	const control = special && canControl(k, v, draft.day, kills);
 
 	// The check above ran on a snapshot; repeat the once-a-day test inside the
 	// insert so a double tap can't sneak a second copy in.
@@ -249,10 +251,10 @@ async function logKill(req: Request, env: Env): Promise<Response> {
 			pts,
 			null,
 			null,
-			+(special && k.converts),
+			+control,
 		)
 		.first<{ id: number }>();
-	if (row && special && k.converts) {
+	if (row && control) {
 		// Control covers the whole day, so kills the victim already made today
 		// switch sides too.
 		await env.DB.prepare(

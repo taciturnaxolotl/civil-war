@@ -251,18 +251,22 @@ describe("sides", () => {
 		expect(byVictim("panther")).toMatchObject({ killerTeam: "cap" });
 	});
 
-	test("the day after control, only the nemesis special gets Bucky", async () => {
+	test("the day after control, Iron Man's special is a plain 2-point kill", async () => {
 		const player = await login("player-pw");
 		const status = async (body: Record<string, unknown>) => (await kill(player, body)).res.status;
 		expect(await status({ killer: "ironman", victim: "bucky", special: true })).toBe(201);
 		const next = "2026-10-13";
-		expect(await status({ killer: "warmachine", victim: "bucky", day: next })).toBe(409);
-		expect(await status({ killer: "ironman", victim: "bucky", day: next })).toBe(409);
-		expect(await status({ killer: "ironman", victim: "bucky", rps: true, day: next })).toBe(409);
+		expect(await status({ killer: "warmachine", victim: "bucky", day: next })).toBe(201);
 		const res = await kill(player, { killer: "ironman", victim: "bucky", special: true, day: next });
 		expect(res.data.points).toBe(2);
-		// That special controls her again, so the 14th is special-only and the 15th is open.
-		expect(await status({ killer: "warmachine", victim: "bucky", day: "2026-10-15" })).toBe(201);
+		await kill(player, { killer: "bucky", victim: "vision", day: next });
+		const s = (await call("/api/state")).data;
+		expect(s.kills.find((k: any) => k.day === next && k.killer === "ironman")).toMatchObject({ converts: false });
+		expect(s.kills.find((k: any) => k.day === next && k.killer === "bucky")).toMatchObject({ killerTeam: "cap" });
+		// The day after that, he can control her again.
+		const again = await kill(player, { killer: "ironman", victim: "bucky", special: true, day: "2026-10-14" });
+		expect(again.res.status).toBe(201);
+		expect((await call("/api/state")).data.kills.at(-1)).toMatchObject({ converts: true });
 	});
 
 	test("a regular kill on Bucky doesn't control her", async () => {

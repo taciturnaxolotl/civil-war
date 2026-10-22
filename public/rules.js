@@ -39,14 +39,15 @@ export function controlled(c, day, kills) {
 }
 
 /**
- * The day after being controlled, a character can only be taken down by their
- * hunter's special.
- * @param {Character} c
+ * Whether a special on this target would control them. It can't the day after
+ * they were controlled; the special still lands as a normal 2-point kill.
+ * @param {Character} k
+ * @param {Character} v
  * @param {string} day
  * @param {Kill[]} kills
  */
-export function specialOnly(c, day, kills) {
-	return controlled(c, addDays(day, -1), kills);
+export function canControl(k, v, day, kills) {
+	return k.converts && !controlled(v, addDays(day, -1), kills);
 }
 
 /**
@@ -137,11 +138,6 @@ export function check(draft, kills, chars) {
 	if (k.id === v.id) return no("self", "Nobody can kill themselves.");
 	if (!canFight(k, v))
 		return no("teammate", `${k.player} and ${v.player} are on the same team.`);
-	if (specialOnly(v, draft.day, kills) && !usesSpecial(k, draft))
-		return no(
-			"special-only",
-			`${v.player} was controlled yesterday, so today they can only be taken down by their nemesis's special.`,
-		);
 	// Knocked out of commission by a special: no more kills for them today.
 	if (kills.some((x) => x.knockout && x.victim === k.id && x.day === draft.day))
 		return no("out", `${k.player} is out of commission today, so they can't get anyone until tomorrow.`);

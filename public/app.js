@@ -13,7 +13,7 @@ import {
 	controlled,
 	other,
 	creditTeam,
-	specialOnly,
+	canControl,
 } from "/rules.js";
 
 let characters = [];
@@ -35,7 +35,6 @@ const entry = {
 const SHORT = {
 	repeat: "Already got them today",
 	"rps-pair": "Settled by RPS today",
-	"special-only": "Nemesis special only today",
 	"free-agent-day": "Already got today",
 	out: "You're out today",
 };
@@ -110,8 +109,8 @@ function renderEntry() {
 					? (SHORT[no.code] ?? "Unavailable")
 					: out.has(c.id)
 						? `${esc(c.hero)} · out today`
-						: specialOnly(c, d.day, kills)
-							? `${esc(c.hero)} · special only today`
+						: c.id === k.target && k.converts && !canControl(k, c, d.day, kills)
+							? `${esc(c.hero)} · can't control today`
 							: k.freeAgent
 								? `${esc(c.hero)} · counts for ${TEAMS[creditTeam(k, c, d.day, kills)]}`
 								: esc(c.hero);
@@ -127,16 +126,11 @@ function renderEntry() {
 	$("methodStep").hidden = !v;
 	const nemesis = !!v && k.target === v.id;
 	if (!nemesis && entry.method === "special") entry.method = "regular";
-	const forced = !!v && specialOnly(v, d.day, kills);
-	if (forced) entry.method = "special";
 	for (const b of document.querySelectorAll("[data-method]")) {
 		b.setAttribute("aria-pressed", String(b.dataset.method === entry.method));
 		if (b.dataset.method === "special") {
 			b.disabled = !nemesis;
 			b.title = nemesis ? "" : "Specials only count on your nemesis";
-		} else {
-			b.disabled = forced;
-			b.title = forced ? "Only a special can get them today" : "";
 		}
 	}
 	const special = entry.method === "special";
@@ -298,7 +292,6 @@ function render() {
 			if (!c.active) tags.push(`<span class="pill">Retired</span>`);
 			if (out.has(c.id)) tags.push(`<span class="pill out">Out today</span>`);
 			if (controlled(c, t, kills)) tags.push(`<span class="pill cd">Controlled today</span>`);
-			if (specialOnly(c, t, kills)) tags.push(`<span class="pill cd">Special only today</span>`);
 			if (cooldownThrough(c, kills, t))
 				tags.push(`<span class="pill cd">Special on cooldown</span>`);
 			const was = s.was.size
