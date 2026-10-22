@@ -1,11 +1,11 @@
 import {
 	blocker,
 	creditTeam,
+	other,
 	hasBonus,
 	isDay,
 	points,
 	TEAMS,
-	teamOn,
 	usesSpecial,
 	type Character,
 	type Kill,
@@ -80,10 +80,7 @@ async function route(req: Request, env: Env, url: URL): Promise<Response> {
 		}
 		const id = Number(parts[1]);
 		if (parts.length === 2 && Number.isInteger(id)) {
-			if (m === "DELETE") {
-				await env.DB.prepare("DELETE FROM kills WHERE id = ?").bind(id).run();
-				return json({ ok: true });
-			}
+			if (m === "DELETE") return deleteKill(env, id);
 			if (m === "PATCH") return editKill(req, env, id);
 		}
 	}
@@ -219,7 +216,7 @@ async function logKill(req: Request, env: Env): Promise<Response> {
 	// Which side each was on at this moment: conversions and free agents mean
 	// that isn't always the team on their card.
 	const killerTeam = creditTeam(k, v, draft.day, kills);
-	const victimTeam = teamOn(v, draft.day, kills);
+	const victimTeam = v.team;
 
 	// The check above ran on a snapshot; repeat the once-a-day test inside the
 	// insert so a double tap can't sneak a second copy in.
@@ -255,12 +252,41 @@ async function logKill(req: Request, env: Env): Promise<Response> {
 			+(special && k.converts),
 		)
 		.first<{ id: number }>();
+	if (row && special && k.converts) {
+		// Control covers the whole day, so kills the victim already made today
+		// switch sides too.
+		await env.DB.prepare(
+			"UPDATE kills SET killer_team = ? WHERE killer = ? AND day = ? AND killer_team = ?",
+		)
+			.bind(other(v.team), v.id, draft.day, v.team)
+			.run();
+	}
 	if (!row)
 		throw new HttpError(
 			409,
 			`${k.hero} already killed ${v.hero} today. Each person can only be killed once a day.`,
 		);
 	return json({ ok: true, id: row.id, points: pts }, 201);
+}
+
+async function deleteKill(env: Env, id: number): Promise<Response> {
+	const gone = await env.DB.prepare("DELETE FROM kills WHERE id = ? RETURNING *")
+		.bind(id)
+		.first<Record<string, unknown>>();
+	if (gone?.converts) {
+		// Undoing a control hands that day's kills back, unless another control
+		// on the same day still stands.
+		const still = await env.DB.prepare(
+			"SELECT 1 FROM kills WHERE converts = 1 AND victim = ? AND day = ? LIMIT 1",
+		)
+			.bind(gone.victim, gone.day)
+			.first();
+		if (!still)
+			await env.DB.prepare("UPDATE kills SET killer_team = ? WHERE killer = ? AND day = ?")
+				.bind(gone.victim_team, gone.victim, gone.day)
+				.run();
+	}
+	return json({ ok: true });
 }
 
 async function editKill(req: Request, env: Env, id: number): Promise<Response> {

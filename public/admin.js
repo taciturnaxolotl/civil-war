@@ -39,7 +39,7 @@ function charCard(c) {
 		<label class="f">Cooldown days<input type="number" name="cooldown" min="0" max="999" value="${c.cooldown}"></label>
 		<label class="f">Order<input type="number" name="sort" min="0" max="999" value="${c.sort}"></label>
 		<label class="inline"><input type="checkbox" name="knocksOut"${c.knocksOut ? " checked" : ""}> Special knocks target out for the day (no kills for them until tomorrow)</label>
-		<label class="inline"><input type="checkbox" name="converts"${c.converts ? " checked" : ""}> Special turns target to this team for the rest of the day</label>
+		<label class="inline"><input type="checkbox" name="converts"${c.converts ? " checked" : ""}> Special controls target for the day (their kills that day score for this team; next day only this special can get them)</label>
 		<label class="inline"><input type="checkbox" name="freeAgent"${c.freeAgent ? " checked" : ""}> Free agent: fights either side, kills count for the other team, can only be killed once a day</label>
 		<label class="inline"><input type="checkbox" name="active"${c.active ? " checked" : ""}> In the game</label>
 		<div class="acts"><button class="x" type="button" data-remove>Remove</button><button class="go" type="submit">Save</button></div>

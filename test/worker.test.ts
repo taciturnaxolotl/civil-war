@@ -231,28 +231,46 @@ describe("sides", () => {
 		expect(await status({ killer: "widow", victim: "falcon", day: "2026-10-14" })).toBe(201);
 	});
 
-	test("Iron Man's code words turn Bucky for the rest of that day only", async () => {
+	test("Iron Man's special controls Bucky: her whole day scores for Stark", async () => {
 		const player = await login("player-pw");
 		const status = async (body: Record<string, unknown>) => (await kill(player, body)).res.status;
-		// Before she's turned, Bucky is Cap and can't touch her own team.
-		expect(await status({ killer: "bucky", victim: "falcon" })).toBe(409);
+		// She keeps fighting Stark, even while controlled.
+		expect(await status({ killer: "bucky", victim: "panther" })).toBe(201);
 		expect(await status({ killer: "ironman", victim: "bucky", special: true })).toBe(201);
-		// Now she's Stark: Cap is fair game and counts for Stark, Stark isn't.
-		expect(await status({ killer: "bucky", victim: "falcon" })).toBe(201);
-		expect(await status({ killer: "bucky", victim: "panther" })).toBe(409);
-		expect(await status({ killer: "warmachine", victim: "bucky" })).toBe(409);
-		// Next day she's back on Cap.
-		expect(await status({ killer: "bucky", victim: "panther", day: "2026-10-13" })).toBe(201);
-		const s = (await call("/api/state")).data;
-		expect(s.kills.find((k: any) => k.victim === "bucky")).toMatchObject({ converts: true, knockout: false });
-		expect(s.kills.find((k: any) => k.victim === "falcon")).toMatchObject({ killerTeam: "stark" });
-		expect(s.kills.find((k: any) => k.victim === "panther")).toMatchObject({ killerTeam: "cap" });
+		expect(await status({ killer: "bucky", victim: "vision" })).toBe(201);
+		expect(await status({ killer: "bucky", victim: "falcon" })).toBe(409);
+		let s = (await call("/api/state")).data;
+		const byVictim = (id: string) => s.kills.find((k: any) => k.killer === "bucky" && k.victim === id);
+		// Before and after the control, both count for Stark.
+		expect(byVictim("panther")).toMatchObject({ killerTeam: "stark" });
+		expect(byVictim("vision")).toMatchObject({ killerTeam: "stark" });
+		// Undoing the control hands them back.
+		const control = s.kills.find((k: any) => k.converts);
+		await call(`/api/kills/${control.id}`, { method: "DELETE", cookie: player });
+		s = (await call("/api/state")).data;
+		expect(byVictim("panther")).toMatchObject({ killerTeam: "cap" });
 	});
 
-	test("a regular kill on Bucky doesn't turn her", async () => {
+	test("the day after control, only the nemesis special gets Bucky", async () => {
+		const player = await login("player-pw");
+		const status = async (body: Record<string, unknown>) => (await kill(player, body)).res.status;
+		expect(await status({ killer: "ironman", victim: "bucky", special: true })).toBe(201);
+		const next = "2026-10-13";
+		expect(await status({ killer: "warmachine", victim: "bucky", day: next })).toBe(409);
+		expect(await status({ killer: "ironman", victim: "bucky", day: next })).toBe(409);
+		expect(await status({ killer: "ironman", victim: "bucky", rps: true, day: next })).toBe(409);
+		const res = await kill(player, { killer: "ironman", victim: "bucky", special: true, day: next });
+		expect(res.data.points).toBe(2);
+		// That special controls her again, so the 14th is special-only and the 15th is open.
+		expect(await status({ killer: "warmachine", victim: "bucky", day: "2026-10-15" })).toBe(201);
+	});
+
+	test("a regular kill on Bucky doesn't control her", async () => {
 		const player = await login("player-pw");
 		await kill(player, { killer: "ironman", victim: "bucky" });
-		expect((await kill(player, { killer: "bucky", victim: "falcon" })).res.status).toBe(409);
+		await kill(player, { killer: "bucky", victim: "vision" });
+		const s = (await call("/api/state")).data;
+		expect(s.kills.at(-1)).toMatchObject({ killerTeam: "cap" });
 	});
 });
 

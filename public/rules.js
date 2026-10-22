@@ -27,21 +27,26 @@ export const TEAMS = { cap: "Team Cap", stark: "Team Stark" };
 export const other = (t) => (t === "cap" ? "stark" : "cap");
 
 /**
- * The team a character fights for on a day. A converting special flips its
- * target to the killer's team for the rest of that day, counting only kills
- * logged after it (pass `at` to ask about a moment; omit it for now).
+ * Whether a character is under control on a day: a controlling special hit
+ * them that day. They still fight for their own team, but every kill they make
+ * that day, before or after, scores for the other side.
  * @param {Character} c
  * @param {string} day
  * @param {Kill[]} kills
- * @param {string} [at]
- * @returns {Team}
  */
-export function teamOn(c, day, kills, at) {
-	const flip = kills
-		.filter((x) => x.converts && x.victim === c.id && x.day === day && (!at || x.at < at))
-		.sort((a, b) => a.at.localeCompare(b.at))
-		.pop();
-	return flip ? flip.killerTeam : c.team;
+export function controlled(c, day, kills) {
+	return kills.some((x) => x.converts && x.victim === c.id && x.day === day);
+}
+
+/**
+ * The day after being controlled, a character can only be taken down by their
+ * hunter's special.
+ * @param {Character} c
+ * @param {string} day
+ * @param {Kill[]} kills
+ */
+export function specialOnly(c, day, kills) {
+	return controlled(c, addDays(day, -1), kills);
 }
 
 /**
@@ -49,18 +54,16 @@ export function teamOn(c, day, kills, at) {
  * side, so they can fight anyone and anyone can fight them.
  * @param {Character} k
  * @param {Character} v
- * @param {string} day
- * @param {Kill[]} kills
  */
-export function canFight(k, v, day, kills) {
+export function canFight(k, v) {
 	if (k.id === v.id) return false;
 	if (k.freeAgent || v.freeAgent) return true;
-	return teamOn(k, day, kills) !== teamOn(v, day, kills);
+	return k.team !== v.team;
 }
 
 /**
  * The team a kill's points go to. A free agent's kills count for whichever
- * team the victim isn't on.
+ * team the victim isn't on; a controlled character's for the other side.
  * @param {Character} k
  * @param {Character} v
  * @param {string} day
@@ -68,7 +71,8 @@ export function canFight(k, v, day, kills) {
  * @returns {Team}
  */
 export function creditTeam(k, v, day, kills) {
-	return k.freeAgent ? other(teamOn(v, day, kills)) : teamOn(k, day, kills);
+	if (k.freeAgent) return other(v.team);
+	return controlled(k, day, kills) ? other(k.team) : k.team;
 }
 
 /**
@@ -131,10 +135,12 @@ export function check(draft, kills, chars) {
 	if (!k.active || !v.active)
 		return no("retired", "That character isn't in the game anymore.");
 	if (k.id === v.id) return no("self", "Nobody can kill themselves.");
-	if (!canFight(k, v, draft.day, kills))
+	if (!canFight(k, v))
+		return no("teammate", `${k.player} and ${v.player} are on the same team.`);
+	if (specialOnly(v, draft.day, kills) && !usesSpecial(k, draft))
 		return no(
-			"teammate",
-			`${k.player} and ${v.player} are on the same team${teamOn(k, draft.day, kills) !== k.team || teamOn(v, draft.day, kills) !== v.team ? " today" : ""}.`,
+			"special-only",
+			`${v.player} was controlled yesterday, so today they can only be taken down by their nemesis's special.`,
 		);
 	// Knocked out of commission by a special: no more kills for them today.
 	if (kills.some((x) => x.knockout && x.victim === k.id && x.day === draft.day))
