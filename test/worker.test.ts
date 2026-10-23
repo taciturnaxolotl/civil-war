@@ -269,6 +269,14 @@ describe("sides", () => {
 		expect((await call("/api/state")).data.kills.at(-1)).toMatchObject({ converts: true });
 	});
 
+	test("a disabled Iron Man can still go after Bucky, and only Bucky", async () => {
+		const player = await login("player-pw");
+		const status = async (body: Record<string, unknown>) => (await kill(player, body)).res.status;
+		expect(await status({ killer: "cap", victim: "ironman", special: true })).toBe(201);
+		expect(await status({ killer: "ironman", victim: "falcon" })).toBe(409);
+		expect(await status({ killer: "ironman", victim: "bucky", special: true })).toBe(201);
+	});
+
 	test("a regular kill on Bucky doesn't control her", async () => {
 		const player = await login("player-pw");
 		await kill(player, { killer: "ironman", victim: "bucky" });

@@ -139,8 +139,17 @@ export function check(draft, kills, chars) {
 	if (!canFight(k, v))
 		return no("teammate", `${k.player} and ${v.player} are on the same team.`);
 	// Knocked out of commission by a special: no more kills for them today.
-	if (kills.some((x) => x.knockout && x.victim === k.id && x.day === draft.day))
-		return no("out", `${k.player} is out of commission today, so they can't get anyone until tomorrow.`);
+	// A controller (Iron Man) can still go after the one they control.
+	if (
+		kills.some((x) => x.knockout && x.victim === k.id && x.day === draft.day) &&
+		!(k.converts && k.target === v.id)
+	)
+		return no(
+			"out",
+			k.converts && k.target && chars[k.target]
+				? `${k.player} is disabled today, so ${chars[k.target].player} is the only one they can get.`
+				: `${k.player} is out of commission today, so they can't get anyone until tomorrow.`,
+		);
 	// A free agent has everyone hunting them, so they only go down once a day.
 	if (v.freeAgent && kills.some((x) => x.victim === v.id && x.day === draft.day))
 		return no("free-agent-day", `${v.player} has already been killed today. Free agents can only go down once a day.`);
