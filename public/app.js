@@ -14,6 +14,7 @@ import {
 	other,
 	creditTeam,
 	canControl,
+	isRestDay,
 } from "/rules.js";
 
 let characters = [];
@@ -35,6 +36,7 @@ const entry = {
 const SHORT = {
 	repeat: "Eliminated",
 	"rps-pair": "Rock Paper Scissors",
+	rest: "Day of rest",
 	"free-agent-day": "Already got today",
 	out: "You're disabled",
 };
@@ -166,7 +168,9 @@ function renderEntry() {
 	$("warn").textContent = warns.join(" ");
 
 	const p = k && v ? points(k, final) : 0;
-	$("submit").textContent = picking
+	$("submit").textContent = isRestDay(final.day)
+		? "Sunday is a day of rest"
+		: picking
 		? "Pick your hero (or villain 😈)"
 		: !v
 			? "Pick your target to murder"

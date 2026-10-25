@@ -168,6 +168,13 @@ describe("kills", () => {
 		).toBe(201);
 	});
 
+	test("nobody can be killed on Sunday", async () => {
+		const player = await login("player-pw");
+		const { res, data } = await kill(player, { killer: "warmachine", victim: "falcon", day: "2026-10-18" });
+		expect(res.status).toBe(409);
+		expect(data.error).toContain("day of rest");
+	});
+
 	test("undo", async () => {
 		const player = await login("player-pw");
 		const { data } = await kill(player, {

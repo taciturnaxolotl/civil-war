@@ -135,6 +135,7 @@ export function check(draft, kills, chars) {
 		return no("missing", "Pick who got the kill and who went down.");
 	if (!k.active || !v.active)
 		return no("retired", "That character isn't in the game anymore.");
+	if (isRestDay(draft.day)) return no("rest", "Sunday is a day of rest. Nobody can be killed today.");
 	if (k.id === v.id) return no("self", "Nobody can kill themselves.");
 	if (!canFight(k, v))
 		return no("teammate", `${k.player} and ${v.player} are on the same team.`);
@@ -235,6 +236,15 @@ export function today() {
 export function addDays(day, n) {
 	const [y, m, d] = day.split("-").map(Number);
 	return ymd(new Date(y, m - 1, d + n));
+}
+
+/**
+ * Sunday is a day of rest: no kills at all.
+ * @param {string} day
+ */
+export function isRestDay(day) {
+	const [y, m, d] = day.split("-").map(Number);
+	return new Date(y, m - 1, d).getDay() === 0;
 }
 
 /**
